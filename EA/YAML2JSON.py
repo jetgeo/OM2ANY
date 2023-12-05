@@ -1,7 +1,7 @@
 import yaml
 import json
 
-mainFolder = "C:\\Data\\GitHub\\OvertureMaps\\schema\\schema"
+mainFolder = "C:\\Users\\reise\\Documents\\GitHub\\OvertureMaps\\schema\\schema"
 defFile = mainFolder + "\\defs.yaml"
 
 with open(defFile, 'r') as file:

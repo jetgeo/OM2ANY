@@ -8,8 +8,9 @@
  */
  
  
-const mainFolder = "C:\\Data\\GitHub\\OvertureMaps\\schema\\schema"
+const mainFolder = "C:\\Users\\reise\\Documents\\GitHub\\OvertureMaps\\schema\\schema"
 const defFile = mainFolder + "\\defs.yaml"
+const defFileJSON = mainFolder + "\\defs.json"
 const acName = "AttributeCatalogue"
 
  
@@ -22,9 +23,3 @@ const guidDate = "{5F1B0A70-92F5-42ef-9431-155EB96F7E5D}"
 const guidBoolean = "{856E597C-0E32-427b-A9B4-FBAC45BFC002}"
 const guidTime = "{83CE9250-D6C5-4ad2-AFB9-75408DD203E8}" 
 
-function main()
-{
-	// TODO: Enter script code here!
-}
-
-main();

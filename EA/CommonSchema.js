@@ -10,55 +10,41 @@
  */
 
 
- 
-function main()
+function main(delElements, clsName, abs, fileName)
 {
-	outputTabs;
+	outputTabs();
 	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Starting script...", 0);
 	
-	// Store JSON data in a JS variable
-	var json = '{"name": "Peter", "age": 22, "country": "United States"}';
-
-
 	// Get the package to work on
-	var contextObjectType = Repository.GetContextItemType();
-	if ( contextObjectType == EA.ObjectType.otPackage )
+	var pck as EA.Package;
+	pck = getSelectedPackage();
+	if (pck == null)
 	{
-		var pck as EA.Package;
-		pck = Repository.GetContextObject();
-		Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Package: " + pck.Name, 0);
-	}
-	else
-	{
-		Session.Prompt( "This script requires a package to be selected.\n" + "Please select a package and try again.", System.PromptType.promptOK );
 		return
 	}
 	
-	//Delete all existing classes
+	//Delete all existing elements in the package if parameter is set to true
 	var els as EA.Collection;
-	els = pck.Elements;
-	var acEl as EA.Element;
+	if (delElements)
+	{
+		els = deleteAllElements(pck);
+	} else
+	{
+		els = pck.Elements
+	}
 		
 	var el as EA.Element;
-	for ( var i = 0 ; i < els.Count ; i++ )
-	{
-		el = els.GetAt(i);
-		Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Delete element: " + el.Name, 0);
-		els.DeleteAt(i, false);
-	}
-	els.Refresh
-	acEl = null;
-	var dtEl as EA.Element
-	dtEl = null;
+	var acEl as EA.Element = null;
+	var dtEl as EA.Element = null;
+	
 	//Create AttributeCatalogue 	
-	acEl = els.AddNew(acName, "Class" );
+	acEl = els.AddNew(clsName, "Class" );
 	acEl.Stereotype = "FeatureType";
-	acEl.Abstract = true;
+	acEl.Abstract = abs;
 	acEl.Update();
 	els.Refresh();
 	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Class for global attributes: " + acEl.Name, 0);
-	
-	
+		
 	var attrs as EA.Collection
 	attrs = acEl.Attributes
 	var attr as EA.Attribute;
@@ -66,11 +52,11 @@ function main()
 	
 	// Reading OM JSON file
 	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Main folder: " + mainFolder, 0);
-	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Reading file: " + defFileJSON, 0);
+	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Reading file: " + fileName, 0);
 	var fso = new COMObject( "Scripting.FileSystemObject" );
 	f = fso.OpenTextFile(defFileJSON, 1);
 	fStr = f.ReadAll();
-	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " " + fStr, 0);
+	//Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " " + fStr, 0);
 
 	
 	// Converting JSON-encoded string to JS object
@@ -100,7 +86,7 @@ function main()
 				{
 					for (var l in jsonObject[j][k])
 					{
-						Repository.WriteOutput("Script", new Date().toLocaleTimeString() + "Property definition: " + l, 0);
+						Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Property definition: " + l, 0);
 						attr = acEl.Attributes.AddNew(l,"");
 						attr.Visibility = "Public";
 						attr.Update();
@@ -109,114 +95,14 @@ function main()
 						{
 							if(typeof jsonObject[j][k][l][m] != 'object')
 							{
-								Repository.WriteOutput("Script", new Date().toLocaleTimeString() + "Property definition property: " + m + ": " + jsonObject[j][k][l][m], 0);
+								//Convert attributes from simple declarations
+								Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Property definition property: " + m + ": " + jsonObject[j][k][l][m], 0);
 								var strP = jsonObject[j][k][l][m];
-								
-								if (m == "type")
-								// Attribute type, convert to ISO 19103 types	
-								{
-									Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Type: " + strP , 0);	
-									var guidDT = "0"		
-									if (strP == "string")
-									{
-										attr.Type = "CharacterString";
-										guidDT = guidCharacterString;
-									}   else if (strP == "integer")
-									{
-										attr.Type = "Integer";
-										guidDT = guidInteger;
-									}	else if (strP == "number")
-									{
-										attr.Type = "Real";
-										guidDT = guidReal;
-									} 	else if (strP == "object")				
-									{
-										//object. Create data type
-										dtEl = els.AddNew(attr.Name[0].toUpperCase() + attr.Name.slice(1)  + "Type", "DataType");
-										dtEl.Update();
-										Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Create data type: " + dtEl.Name, 0);	
-										els.Refresh();
-										attr.Type = dtEl.Name;
-										attr.ClassifierID =dtEl.ElementID;
-										
-										//TODO: Add attributes for the data type. Additional indent levels: 
-										//"properties": {
-											//"property": {
-											//	"type": "string"
-											//},
-											//"dataset": {
-											//	"type": "string"
-											//},
-											//"recordId": {
-											//	"type": "string",
-											//	"description": "Refers to the specific record within the dataset that was used."
-											//},
-											//"confidence": {
-											//	"description": "If the source data has a confidence value, especially for ml-derived data, record that here.",
-											//	"type": "number",
-											//	"minimum": 0,
-											//	"maximum": 1
-										//}
-					
-										
-									} 	else if (strP == "array")	
-									{
-										//array: 	Set datatype array first, then change from item value (last part if id + Type)
-										//			Works for types that are object, not for linearPos, which is fixed at the end
-										attr.Type = "Array";
-											
-									}	else
-									{
-										//TODO: oneOf, i.e. language. Union?
-										attr.Type = strP;
-									}	
-									//Lookup type element from GUID, add reference
-									if (guidDT != 0)
-									{
-										dtEl = Repository.GetElementByGuid(guidDT);
-										attr.ClassifierID = dtEl.ElementID;
-									}	
-								}
-								
-								//Definition from description
-								else if (m == "description")
-								{
-									Repository.WriteOutput("Script", new Date().toLocaleTimeString() + "Definition : " + strP, 0);	
-									attr.Notes = strP;	
-								}	
-								
-								//Initial value from default
-								else if (m == "default")
-								{
-									Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Default value: " + strP, 0);	
-									attr.Default = strP;
-								}					
-								
-								else if (m == "minItems")
-								{
-									//For arrays: minItems
-									attr.LowerBound = strP;
-									attr.UpperBound = "*";
-								}	
-								else if (m == "maxItems")
-								{
-									//For arrays: maxItems
-									attr.UpperBound = strP;
-								}   
-								else if (m == "uniqueItems" || strP == "true")
-								{
-									attr.AllowDuplicates = false;
-									attr.Update();
-								}
-
-								//TODO: Tagged vale for format
-								//TODO: Tagged vale for pattern
-								//TODO: Tagged vale for comment
-								
+								attr = convertAttribute(attr,els,m,strP);
 							} else
 							{
-								Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Object", 0);	
-								//Enumeration
+								//Object declarations, dive into deeper levels
+								//Enumeration - Create enumeration with values
 								if (m == "enum")
 								{
 									dtEl = els.AddNew(attr.Name[0].toUpperCase() + attr.Name.slice(1) + "Code", "Enumeration");
@@ -234,7 +120,6 @@ function main()
 										dtAttr.Update();
 										dtEl.Attributes.Refresh();
 									}		
-
 								}									
 								else if (m == "items")	
 								{
@@ -242,13 +127,55 @@ function main()
 									//TODO: What if more than one "item"?
 									for (var n in jsonObject[j][k][l][m])
 									{
-										Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Array item type: " + jsonObject[j][k][l][m][n], 0);	
-										//split on "/", find last element, UpperCase first letter, add "Type"
-										var p = jsonObject[j][k][l][m][n].lastIndexOf("/");
-										var strItem = jsonObject[j][k][l][m][n].slice(p+1);
-										attr.Type = strItem[0].toUpperCase() + strItem.slice(1)  + "Type";
+										attr = getAttributeTypeFromRef(attr, jsonObject[j][k][l][m][n])
 									}		
-								}								
+								}	
+								else if (m == "properties")
+								{	
+									//Add attributes for the data type from additional indent 
+									els.Refresh();
+									dtEl = Repository.GetElementByID(attr.ClassifierID);
+									for (var n in jsonObject[j][k][l][m])
+									{
+										Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Datatype property definition: " + n, 0);
+										dtAttr = dtEl.Attributes.AddNew(n,"");
+										dtAttr.Update();
+										dtEl.Attributes.Refresh()
+										
+										for (var o in jsonObject[j][k][l][m][n])
+										{	
+											var strO = jsonObject[j][k][l][m][n][o]
+											if (o == "type" || o == "description")
+											// Convert to data type attributes	
+											{
+												dtAttr = convertAttribute(dtAttr,els,o,strO);
+											}
+											else if (o == "$ref") 
+											{
+												dtAttr = getAttributeTypeFromRef(dtAttr, strO)
+											}												
+											else if (o == "items")	
+											{
+												//For arrays: Add data type from "item"
+												//TODO: What if more than one "item"?
+												for (var p in jsonObject[j][k][l][m][n][o])
+												{
+													dtAttr = getAttributeTypeFromRef(dtAttr, jsonObject[j][k][l][m][n][o][p])
+												}		
+											}	
+										}	
+										dtAttr.Update();
+										dtEl.Attributes.Refresh()
+									}
+								}
+								else if (m == "oneOf")
+								{	
+									var aCon as EA.AttributeConstraint;
+									aCon = attr.Constraints.AddNew("oneOf", "");
+									aCon.Notes = '"oneOf":'+ JSON.stringify(jsonObject[j][k][l][m]);
+									aCon.Update();
+									Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " One of constraint: " + aCon.Notes, 0);	
+								}
 							}	
 						}	
 						attr.Update();
@@ -259,48 +186,67 @@ function main()
 		}
 	}
 	
+	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Fixing types and classifier IDs...", 0);	
+	
 	//	Loop for all data types and enumerations: 
-	//	Find attributes in AttributeCatalogue with the objectname as type. Define ClassifierID from ElementId
-	attrs.Refresh();
-	for ( var i = 0 ; i < els.Count ; i++ )
+	//	Find attributes in element with the objectname as type. Define ClassifierID from ElementId
+	
+	pck.Elements.Refresh();
+	
+	for ( var i = 0 ; i < pck.Elements.Count ; i++ )
 	{
-		dtEl = els.GetAt(i);
-		for ( var j = 0 ; j < attrs.Count ; j++ )
-		{
-			attr = attrs.GetAt(j)
-			if (attr.Type == dtEl.Name)
+		dtEl = pck.Elements.GetAt(i);
+		if (dtEl.Type == "Enumeration" || dtEl.Type == "DataType")
+		{	
+			for ( var j = 0 ; j < pck.Elements.Count ; j++ )
 			{
-				attr.ClassifierID = dtEl.ElementID;
-				attr.Update();
-			}				
+				el = pck.Elements.GetAt(j)
+				for ( var k = 0 ; k < el.Attributes.Count ; k++ )
+				{
+					attr = el.Attributes.GetAt(k)
+					if (attr.Type == dtEl.Name)
+					{
+						attr.ClassifierID = dtEl.ElementID;
+						attr.Update();
+					}				
+				}
+				el.Attributes.Refresh();
+			}	
 		}
-		attrs.Refresh();
 	}
 		
-	// 	Loop for all attributes in AttributeCatalogue:
-	//	Fix Type for attributes without GUID: Ref linearPos. If there exists another attribute with the Type name, without type --> use sate Type as that one. 
-	for ( var i = 0 ; i < attrs.Count ; i++ )
+	// 	Loop for all attributes in all classes and data types:
+	//	Fix Type for attributes without GUID: Ref linearPos. 
+	// If there exists another attribute in AttributeCatalogue with the Type name, without type --> use the same Type as that one. 
+	for ( var i = 0 ; i < pck.Elements.Count ; i++ )
 	{
-		attr = attrs.GetAt(i)
-		if (attr.ClassifierID == 0 && attr.Type != "")
-		{
-			var strType = attr.Type
-			strType = strType[0].toLowerCase() + strType.slice(1,-4);
-			for ( var j = 0 ; j < attrs.Count ; j++ )
+		el = pck.Elements.GetAt(i);
+		var eln = el.Name;
+		if (el.Type == "Class" || el.Type == "DataType")
+		{	
+			for ( var j = 0 ; j < el.Attributes.Count ; j++ )
 			{
-				var dtAttr as EA.Attribute
-				dtAttr = attrs.GetAt(j);
-				if (dtAttr.Name == strType)
+				attr = el.Attributes.GetAt(j)
+				var strType = attr.Type
+				if (attr.ClassifierID == 0 && attr.Type != "")
 				{
-					attr.Type = dtAttr.Type;
-					attr.ClassifierID = dtAttr.ClassifierID;
-					attr.Update();
+					strType = strType[0].toLowerCase() + strType.slice(1,-4);
+					attrs.Refresh();
+					for ( var k = 0 ; k < attrs.Count ; k++ )
+					{
+						var dtAttr as EA.Attribute
+						dtAttr = attrs.GetAt(k);
+						if (dtAttr.Name == strType)
+						{
+							attr.Type = dtAttr.Type;
+							attr.ClassifierID = dtAttr.ClassifierID;
+							attr.Update();
+						}				
+					}
 				}				
 			}
-		}				
+		}	
 	}
-	attrs.Refresh();
-
 	// Find or create diagram
 	var eDgr as EA.Diagram = null;
 	for ( var i = 0 ; i < pck.Diagrams.Count ; i++ )
@@ -338,4 +284,4 @@ function main()
 	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Finished, check logs!", 0);
 }
 
-main();
+main(true,acName,true, defFileJSON);
