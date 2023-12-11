@@ -4,14 +4,15 @@ import yaml
 import json
 import os
 import re
+from Parameters import *
 
-mainFolder = "C:\\Data\\GitHub\\jetgeo\\OM2UML\\schema"
+# mainFolder = "C:\\Data\\GitHub\\jetgeo\\OM2UML\\schema"
 
 # Create a regular expression to match files with yaml extension
 yaml_pattern = re.compile(r".+\.yaml$")
 
 # Loop through the folder and its subfolders
-for root, dirs, files in os.walk(mainFolder):
+for root, dirs, files in os.walk(schemaFolder):
     # Loop through the files in the current folder
     for file in files:
         # Get the full path of the file
