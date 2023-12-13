@@ -6,7 +6,7 @@
  * Script Name: CommonSchema
  * Author: Knut Jetlund
  * Purpose: Convert Overture Maps common properties to UML
- * Date: 20231122
+ * Date: 20231205
  */
 
 
@@ -54,7 +54,7 @@ function main(delElements, clsName, abs, fileName)
 	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Main folder: " + mainFolder, 0);
 	Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Reading file: " + fileName, 0);
 	var fso = new COMObject( "Scripting.FileSystemObject" );
-	f = fso.OpenTextFile(defFileJSON, 1);
+	f = fso.OpenTextFile(fileName, 1);
 	fStr = f.ReadAll();
 	//Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " " + fStr, 0);
 
@@ -81,12 +81,11 @@ function main(delElements, clsName, abs, fileName)
 			// Definition statements
 			for (var k in jsonObject[j])
 			{
-				if (k == 'propertyDefinitions')
-				//Property defintions
+				if (k == 'propertyDefinitions' || k == 'propertyContainers')
 				{
 					for (var l in jsonObject[j][k])
 					{
-						Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " Property definition: " + l, 0);
+						Repository.WriteOutput("Script", new Date().toLocaleTimeString() + " " + k + ": " + l, 0);
 						attr = acEl.Attributes.AddNew(l,"");
 						attr.Visibility = "Public";
 						attr.Update();
@@ -192,7 +191,21 @@ function main(delElements, clsName, abs, fileName)
 	//	Find attributes in element with the objectname as type. Define ClassifierID from ElementId
 	
 	pck.Elements.Refresh();
-	
+	//Delete "Container" attributes
+	for ( var j = 0 ; j < pck.Elements.Count ; j++ )
+	{
+		el = pck.Elements.GetAt(j)
+		for ( var k = 0 ; k < el.Attributes.Count ; k++ )
+		{
+			attr = el.Attributes.GetAt(k)
+			if (attr.Name.includes("Container"))
+			{
+				el.Attributes.DeleteAt(k,false);
+			}
+		}
+		el.Attributes.Refresh
+	}
+				
 	for ( var i = 0 ; i < pck.Elements.Count ; i++ )
 	{
 		dtEl = pck.Elements.GetAt(i);
@@ -241,7 +254,8 @@ function main(delElements, clsName, abs, fileName)
 							attr.Type = dtAttr.Type;
 							attr.ClassifierID = dtAttr.ClassifierID;
 							attr.Update();
-						}				
+							
+						}							
 					}
 				}				
 			}
