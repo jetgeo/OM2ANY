@@ -74,27 +74,43 @@ for folder, subfolders, files in os.walk(schemaFolder):
             for i in yaml_dict:
                 if i == 'title':
                     strAlias = yaml_dict[i]
-                    printTS('Schema title: ' + strAlias)
+                    printTS('Title: ' + strAlias)
                 elif i == 'description':
                     strDef = yaml_dict[i]
-                    printTS('Schema description: ' + strDef)
+                    printTS('Description: ' + strDef)
                 elif i == '$defs':
 			        # Definition statements
                     printTS('Global properties')
                     # Get or create Defs Class, delete all existing attributes 
-                    strName = eaPck.Name + "Defs"
-                    eaEl = getOrCreateElementByName(eaPck,strName,True,strAlias,strDef,True)
                     for j in yaml_dict[i]:
-                        if (j == 'propertyDefinitions') or (j == 'propertyContainers'):
+                        if (j == 'propertyDefinitions') :
+                            strName = eaPck.Name + "Defs"
+                            eaEl = getOrCreateElementByName(eaPck,strName,"Class", "featureType",True, strAlias,strDef,True)
                             # This is where the global properties are defined
-                            printTS('Processing ' + j)
+                            printTS('Processing global properties')
                             eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yaml_dict[i][j])
+                        elif j == 'propertyContainers':
+                            printTS('Processing property containers')
+                            for pC in yaml_dict[i][j]:
+                                strName = pC[0].upper() + pC[1:]
+                                for p in yaml_dict[i][j][pC]:
+                                    strAlias = ""
+                                    strDef = ""
+                                    if p == 'title':
+                                        strAlias = yaml_dict[i][j][pC][p]
+                                        printTS('Title: ' + strAlias)
+                                    elif p == 'description':
+                                        strDef = yaml_dict[i][j][pC][p]
+                                        printTS('Description: ' + strDef)
+                                    elif p == 'properties':
+                                        eaEl = getOrCreateElementByName(eaPck,strName,"DataType", "",False,strAlias,strDef,True)
+                                        eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yaml_dict[i][j][pC][p])
                 elif i == 'properties':
                     printTS('Feature class properties') 
                     # Get or create Thematic Class, delete all existing attributes 	
                     # Uppercase first character in name    
                     strName = file_name[0].upper() + file_name[1:]
-                    eaEl = getOrCreateElementByName(eaPck,strName,False,strAlias,strDef,True)
+                    eaEl = getOrCreateElementByName(eaPck,strName,"Class", "featureType",False,strAlias,strDef,True)
                     # process properties 
                     eaEl = createAttributesFromYAMLDictionary(eaRepo, eaPck, eaEl,yaml_dict[i])
 
@@ -132,7 +148,49 @@ for folder, subfolders, files in os.walk(schemaFolder):
     ePIF.LayoutDiagramEx(eDgr.DiagramGUID, 4, 4, 20, 20, True)
     eaRepo.CloseDiagram(eDgr.DiagramID)
 
-    printTS("------------- DONE ------------------")
+# Find all uses of data types and enumerations, and set correct ClassifierID
+printTS('Use of enumerations and datatypes everywhere...')
+for eaDTpck in omMod.Packages:
+    for eaDTel in eaDTpck.Elements:
+        if eaDTel.Type == "Enumeration" or eaDTel.Type == "DataType":
+            # Enumeration or DataType found, searching for use
+            printTS(eaDTel.Type + ": " + eaDTel.Name)
+            for eaPck in omMod.Packages:
+                for eaEl in eaPck.Elements:
+                    for eaAttr in eaEl.Attributes:
+                        if eaAttr.Type == eaDTel.Name:
+                            printTS('Attribute: "' + eaEl.Name + '.' + eaAttr.Name + ' (' + eaAttr.Type + ')')
+                            eaAttr.ClassifierID = eaDTel.ElementID
+                            eaAttr.Update()
+                    eaEl.Attributes.Refresh()        
+
+
+# Fix attribute type and ClassifierID for attributes that are still missing ClassifierID
+# If there exists another attribute in a Defs class with the Type name, without "Type" --> use the same Type as that one. 
+printTS('Fix missing ClassifierIDs...')
+for eaPck in omMod.Packages:
+    for eaEl in eaPck.Elements:
+        if eaEl.Type == "Class" or eaEl.Type == "DataType":
+            # Class or DataType found, controlling attributes
+            # printTS(eaEl.Type + ": " + eaEl.Name)
+            for eaAttr in eaEl.Attributes:
+                if eaAttr.ClassifierID == 0 and eaAttr.Type != "" and eaAttr.Type[-4:] == "Type":
+                    printTS('Attribute: "' + eaEl.Name + '.' + eaAttr.Name + ' (' + eaAttr.Type + ')')
+                    strType = eaAttr.Type[0].lower() + eaAttr.Type[1:-4]
+                    for eaDTpck in omMod.Packages:
+                        for eaDTel in eaDTpck.Elements:
+                            if eaDTel.Name[-4:] == "Defs":
+                                for eaDTattr in eaDTel.Attributes:
+                                    if eaDTattr.Name ==strType:
+                                        printTS('Attribute found: "' + eaDTel.Name + '.' + eaDTattr.Name + ' (' + eaDTattr.Type + ')')
+                                        eaAttr.Type = eaDTattr.Type
+                                        eaAttr.ClassifierID = eaDTattr.ClassifierID
+                                        eaAttr.Update()
+            eaEl.Attributes.Refresh()  
+
+
+
+printTS("------------- DONE ------------------")
 
 
 closeEA(eaRepo)

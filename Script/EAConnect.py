@@ -34,7 +34,7 @@ def closeEA(eaRepo):
     eaRepo.Exit()   
     printTS('Repository closed!')
  
-def getOrCreateElementByName(eaPck,strName,absCls,strAlias,strDef,delAttr=False):
+def getOrCreateElementByName(eaPck,strName,elType, stType, absCls,strAlias,strDef,delAttr=False):
 # Get element by name, or create if not existing
     
     try:
@@ -44,9 +44,9 @@ def getOrCreateElementByName(eaPck,strName,absCls,strAlias,strDef,delAttr=False)
     if eaEl != None:
         printTS('Existing Element "' + eaEl.Name + '"')
     else:    
-        eaEl = eaPck.Elements.AddNew(strName, "Class" )
+        eaEl = eaPck.Elements.AddNew(strName, elType )
         printTS('Added Element "' + eaEl.Name + '"')
-    eaEl.Stereotype = "FeatureType"
+    eaEl.Stereotype = stType
     eaEl.Abstract = absCls
     eaEl.Alias = strAlias
     eaEl.Notes = strDef
@@ -61,14 +61,14 @@ def getOrCreateElementByName(eaPck,strName,absCls,strAlias,strDef,delAttr=False)
 
     return eaEl
 
-def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,dict):
+def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict):
 #Create attributes from a list of properties in a YAML dictionary
     pos = eaEl.Attributes.Count + 1
-    for key in dict :
+    for key in yDict :
         if key == 'properties':
-            for jKey in dict[key]:
+            for jKey in yDict[key]:
                 if jKey == 'properties':
-                    eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaEl,dict[key][jKey])
+                    eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaEl,yDict[key][jKey])
         else:                    
             eaAttr = eaEl.Attributes.AddNew(key,"")
             eaAttr.Visibility = "Public"
@@ -78,7 +78,7 @@ def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,dict):
             printTS('Added property:"' + eaAttr.Name + '"')
 
             ## Get type, definition etc    
-            eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,dict[key])
+            eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict[key])
 
             eaEl.Attributes.Refresh()
     return eaEl
@@ -99,31 +99,18 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
             elif strType == "number":
                 eaAttr.Type = "Real"
                 guidDT = guidReal
+            elif strType == "boolean":
+                eaAttr.Type = "Boolean"
+                guidDT = guidBoolean
             elif strType == "object":
-                # object. Create data type
+                # object. Create (or get) data type
                 strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
-                try:
-                    eaDTel = eaPck.Elements.GetByName(strName)
-                except:    
-                    eaDTel = None
-                if eaDTel != None:
-                    printTS('Existing data type "' + eaDTel.Name + '"')
-                    #Delete all existing data type attributes
-                    # for idx in range(eaDTel.Attributes.Count):
-                    #     eaDTel.Attributes.DeleteAt(idx,False)
-                    #     eaDTel.Attributes.Refresh()
-                else:    
-                    eaDTel = eaPck.Elements.AddNew(strName, "DataType") 
-                    printTS("Create data type: " + eaDTel.Name)  
-                eaDTel.Notes = eaAttr.Notes 
-                eaDTel.Update()
-
+                eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,True)
                 eaPck.Elements.Refresh()
                 eaAttr.Type = eaDTel.Name
                 eaAttr.ClassifierID = eaDTel.ClassifierID
 
                 # TODO: Add data type attributes... if 'properties
-
             elif strType == "array":
                 # array: 	Set datatype array first, then change from item value (last part if id + Type)
                 # Works for types that are object, not for linearPos, which is fixed at the end
@@ -134,13 +121,19 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
             if guidDT != "0":
                 eaDTel = eaRepo.GetElementByGuid(guidDT)
                 eaAttr.ClassifierID = eaDTel.ElementID
+        elif key == 'properties':
+             eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key])       
         elif key == 'description':
             printTS('Definition: ' + yDict[key])    
             eaAttr.Notes = yDict[key]
         elif key == 'default':
             printTS('Default value: ' + str(yDict[key]))
             if (isinstance(yDict[key],list) or isinstance(yDict[key],dict)) and len(yDict[key]) != 0:
-                eaAttr.Default = yDict[key][0]
+                try:
+                    eaAttr.Default = yDict[key][0]
+                except:
+                    for nKey in yDict[key]:
+                        eaAttr.Default = yDict[key][nKey][0]
             elif not isinstance(yDict[key],list) and not isinstance(yDict[key],dict):    
                 eaAttr.Default = yDict[key] 
         elif key == 'minItems':
@@ -156,23 +149,10 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
         elif key == 'enum':
             # Enumeration - Create enumeration with values
             strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
+            # Add class name as prefix to enum name, to avoid duplicate subtype enums etc
             if eaEl.Name != eaPck.Name + "Defs":
                 strName = eaEl.Name + strName
-            try:
-                eaDTel = eaPck.Elements.GetByName(strName)
-            except:    
-                eaDTel = None
-            if eaDTel != None:
-                printTS('Existing Enumeration "' + eaDTel.Name + '"')
-                #Delete all existing enumeration values
-                for idx in range(eaDTel.Attributes.Count):
-                    eaDTel.Attributes.DeleteAt(idx,False)
-                eaDTel.Attributes.Refresh()                
-            else:    
-                eaDTel = eaPck.Elements.AddNew(strName, "Enumeration") 
-                printTS("Create enumeration: " + eaDTel.Name)  
-            eaDTel.Notes = eaAttr.Notes 
-            eaDTel.Update()
+            eaDTel = getOrCreateElementByName(eaPck,strName,"Enumeration", "",False,"",eaAttr.Notes,True)
             eaPck.Elements.Refresh()
             eaAttr.Type = eaDTel.Name
             eaAttr.ClassifierID = eaDTel.ClassifierID
@@ -185,11 +165,31 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
                 eaDTattr.Update()
                 printTS("Enumeration value: " + eaDTattr.Name)	
                 eaDTel.Attributes.Refresh()
-									
+        elif key == '$ref':
+            strRef = yDict[key].split("/")[-1] + "Type"
+            strRef = strRef[0].upper() + strRef[1:]
+            printTS('Attributeref: ' + strRef)
+            eaAttr.Type = strRef      
+        elif key == 'items':
+            for eKey in yDict[key]:
+                if eKey == "$ref":
+                    strRef = yDict[key][eKey].split("/")[-1] + "Type"
+                    strRef = strRef[0].upper() + strRef[1:]
+                    printTS('Attributeref: ' + strRef)
+                    eaAttr.Type = strRef
+            #     eaDTattr.Update()
+
+            #     eaDTel.Attributes.Refresh()           
+
+
     eaAttr.Update()        
     return eaAttr
   
+def getAttributeTypeFromRef(theAttribute, theRef):
 
+
+
+    return theAttribute
 
 # --------- Test code ----------------
 
