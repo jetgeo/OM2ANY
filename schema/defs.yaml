@@ -22,6 +22,7 @@ description: Common schema definitions shared by all themes
         - land
         - landUse
         - locality
+        - part
         - place
         - segment
         - water
@@ -105,14 +106,14 @@ description: Common schema definitions shared by all themes
         center-line segment.
       type: number
       minimum: 0
-      maxiumum: 1
+      maximum: 1
       "$comment": >-
         One possible advantage to using percentages over absolute
         distances is being able to trivially validate that the position
         lies "on" its segment (i.e. is between zero and one). Of course,
         this level of validity doesn't mean the number isn't nonsense.
     linearlyReferencedRange:
-      description: >-
+      description:
         Represents a non-empty range of positions along a path as a pair
         linearly-referenced positions. For example, the pair [0.25, 0.5]
         represents the range beginning 25% of the distance from the
@@ -231,15 +232,14 @@ description: Common schema definitions shared by all themes
     address:
       type: object
       unevaluatedProperties: false
-      required: [freeform]
       properties:
-        freeform: # TODO: Should probably be renamed freeForm, as free-form is a two-word hyphenated construct.
+        freeform:
           description: Free-form address that contains street name, house number and other address info
           type: string
         locality:
           description: Name of the City or Neighborhood where the address is located
           type: string
-        postCode:
+        postcode:
           description: Post code where the address is located
           type: string
         region:

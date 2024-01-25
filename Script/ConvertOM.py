@@ -3,7 +3,8 @@ from EAConnect import *
 import sys, os, re, yaml, json
 
 
-# Open EA Reopsitory and find OM Model
+# -------------------------------------------------------------------------------------
+# Open EA Repository and find OM Model
 eaApp = openEAapp()
 eaRepo = openEArepo(eaApp,repo_path)
 for eaMod in eaRepo.Models:
@@ -20,10 +21,13 @@ except Exception as e:
 
 printTS('Number of existing packages: ' + str(omMod.Packages.Count))
 
+# -------------------------------------------------------------------------------------
 # Create a regular expression to match files with yaml extension
 yaml_pattern = re.compile(r".+\.yaml$")
 omMod.Packages.Refresh()
 
+# -------------------------------------------------------------------------------------
+# Walk through folders and files
 for folder, subfolders, files in os.walk(schemaFolder):
     # Get or create packages from folder names ("Common" for the root folder)
     if os.path.relpath(folder, schemaFolder) == ".":
@@ -55,6 +59,7 @@ for folder, subfolders, files in os.walk(schemaFolder):
           #printTS('File: '+ file_path)
           # Get the file name without extension
           file_name = os.path.splitext(file)[0]
+          # Skip the main schema.yaml file (not relevant for the conversion)
           if (file_name == 'schema'):
             continue
 

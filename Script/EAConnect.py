@@ -148,7 +148,7 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
             eaAttr.AllowDuplicates = False
         elif key == 'enum':
             # Enumeration - Create enumeration with values
-            strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
+            strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Enum"
             # Add class name as prefix to enum name, to avoid duplicate subtype enums etc
             if eaEl.Name != eaPck.Name + "Defs":
                 strName = eaEl.Name + strName
