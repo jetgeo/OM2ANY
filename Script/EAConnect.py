@@ -63,7 +63,6 @@ def getOrCreateElementByName(eaPck,strName,elType, stType, absCls,strAlias,strDe
     return eaEl
 
 
-# TODO: Ta med required-liste som input
 def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict,reqProps=[]):
 #Create attributes from a list of properties in a YAML dictionary
     lstReq = reqProps
@@ -172,7 +171,6 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
         elif key == 'minItems':
             printTS('Minimum items: ' + str(yDict[key]))    
             eaAttr.LowerBound = yDict[key] 
-            ## eaAttr.UpperBound = "*"
         elif key == 'maxItems':
             printTS('Maximum items: ' + str(yDict[key]))    
             eaAttr.UpperBound = yDict[key] 
@@ -183,7 +181,8 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
             # Enumeration - Create enumeration with values
             strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Enum"
             # Add class name as prefix to enum name, to avoid duplicate subtype enums etc
-            if eaEl.Name != eaPck.Name + "Defs":
+            # Not for the datatype SpeedType either...
+            if eaEl.Name != eaPck.Name + "Defs" and eaEl.Name != 'SpeedType':
                 strName = eaEl.Name + strName
             eaDTel = getOrCreateElementByName(eaPck,strName,"Enumeration", "",False,"",eaAttr.Notes,True)
             eaPck.Elements.Refresh()
@@ -221,6 +220,31 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
                     strType = yDict[key][eKey]
                     printTS('Item property type: ' + strType)
                     eaAttr = convert2ISOtypes(eaRepo,eaAttr,strType)
+        elif key == 'prefixItems':
+            # prefixItems is an array, where each item is a schema that corresponds to each index of the document's array. 
+            # That is, an array where the first element validates the first element of the input array, 
+            # the second element validates the second element of the input array, etc.
+            # The array has only one occurence, as the multiplicity is within the array
+            eaAttr.LowerBound = 0
+            eaAttr.UpperBound = 1 
+            # Create data type with properties for the array
+            strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
+            eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,True)
+            # refer the attribute to the data type
+            eaAttr.Type = eaDTel.Name
+            eaAttr.ClassifierID = eaDTel.ClassifierID            
+            
+            # Special treatment to get propertys of the speedType
+            if eaAttr.Name == "speed":            
+                nameDict = {'0':'speedValue', '1':'speedUnit'}
+                speedDict = {}
+                for index, pDict in enumerate(yDict[key]):
+                    strIndex = str(index)
+                    pDict.update({'minItems':'1'})
+                    #printTS(str(nameDict[strIndex]))
+                    speedDict.update({nameDict[strIndex]:pDict })
+                eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaDTel,speedDict)
+
             #     eaDTattr.Update()
 
             #     eaDTel.Attributes.Refresh()           
