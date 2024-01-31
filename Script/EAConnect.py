@@ -50,6 +50,7 @@ def getOrCreateElementByName(eaPck,strName,elType, stType, absCls,strAlias,strDe
     eaEl.Abstract = absCls
     eaEl.Alias = strAlias
     eaEl.Notes = strDef
+    printTS('Element definition "' + eaEl.Notes + '"')
     eaEl.Update()
     eaPck.Elements.Refresh()
 
@@ -61,18 +62,34 @@ def getOrCreateElementByName(eaPck,strName,elType, stType, absCls,strAlias,strDe
 
     return eaEl
 
-def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict):
+
+# TODO: Ta med required-liste som input
+def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict,reqProps=[]):
 #Create attributes from a list of properties in a YAML dictionary
+    lstReq = reqProps
     pos = eaEl.Attributes.Count + 1
     for key in yDict :
         if key == 'properties':
+            # properties under the property type
             for jKey in yDict[key]:
+                if jKey == 'required':
+                   # List of which of the subsequent properties are required
+                   printTS('Required properties: ' + str(yDict[key][jKey]))
+                   # Create a list of required properties 
+                   lstReq = yDict[key][jKey]
                 if jKey == 'properties':
-                    eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaEl,yDict[key][jKey])
+                    eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaEl,yDict[key][jKey],lstReq)
         else:                    
+            # the level is the actual property level
             eaAttr = eaEl.Attributes.AddNew(key,"")
             eaAttr.Visibility = "Public"
             eaAttr.Pos = pos
+            # Default cardinality 0..1. May be overruled by minItems and maxItems and list of required properties
+            if key in reqProps:
+                eaAttr.LowerBound = "1"
+            else:        
+                eaAttr.LowerBound = "0"
+            eaAttr.UpperBound = "1"
             eaAttr.Update()
             pos += 1
             printTS('Added property:"' + eaAttr.Name + '"')
@@ -83,46 +100,60 @@ def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict):
             eaEl.Attributes.Refresh()
     return eaEl
 
+def convert2ISOtypes(eaRepo,eaAttr,strType):
+#Convert from YAML types to primitive ISO/TC 211 UML types
+    guidDT = "0"
+    if strType == "string":
+        eaAttr.Type = "CharacterString"
+        guidDT = guidCharacterString
+    elif strType == "integer":
+        eaAttr.Type = "Integer"
+        guidDT = guidInteger
+    elif strType == "number":
+        eaAttr.Type = "Real"
+        guidDT = guidReal
+    elif strType == "boolean":
+        eaAttr.Type = "Boolean"
+        guidDT = guidBoolean 
+    # Lookup type element from GUID, add reference
+    if guidDT != "0":
+        eaDTel = eaRepo.GetElementByGuid(guidDT)
+        eaAttr.ClassifierID = eaDTel.ElementID  
+    eaAttr.Update()
+    return eaAttr     
+
 def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
-# Convert attribute type, definition etc.   
+# Convert attribute type, definition etc.  
+    lstReq = [] 
     for key in yDict:
         if key == 'type':
-            guidDT = "0"
-            printTS('Property type: ' + yDict[key])
             strType = yDict[key]
-            if strType == "string":
-                eaAttr.Type = "CharacterString"
-                guidDT = guidCharacterString
-            elif strType == "integer":
-                eaAttr.Type = "Integer"
-                guidDT = guidInteger
-            elif strType == "number":
-                eaAttr.Type = "Real"
-                guidDT = guidReal
-            elif strType == "boolean":
-                eaAttr.Type = "Boolean"
-                guidDT = guidBoolean
-            elif strType == "object":
+            printTS('Property type: ' + strType)
+            eaAttr.Type = strType
+            eaAttr = convert2ISOtypes(eaRepo,eaAttr,strType)
+
+            if strType == "object":
                 # object. Create (or get) data type
                 strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
                 eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,True)
                 eaPck.Elements.Refresh()
                 eaAttr.Type = eaDTel.Name
                 eaAttr.ClassifierID = eaDTel.ClassifierID
-
                 # TODO: Add data type attributes... if 'properties
             elif strType == "array":
                 # array: 	Set datatype array first, then change from item value (last part if id + Type)
                 # Works for types that are object, not for linearPos, which is fixed at the end
                 eaAttr.Type = "Array"
-            else:
-                eaAttr.Type = strType
-            # Lookup type element from GUID, add reference
-            if guidDT != "0":
-                eaDTel = eaRepo.GetElementByGuid(guidDT)
-                eaAttr.ClassifierID = eaDTel.ElementID
+                # Default cardinality 0..* for arrays. May be overruled by minItems and maxItems
+                eaAttr.LowerBound = "0"
+                eaAttr.UpperBound = "*"
+        elif key == 'required':
+                # List of whith subsequent properties are required
+                printTS('Required properties: ' + str(yDict[key]))
+                # Create a list of required properties
+                lstReq = yDict[key]
         elif key == 'properties':
-             eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key])       
+             eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq)       
         elif key == 'description':
             printTS('Definition: ' + yDict[key])    
             eaAttr.Notes = yDict[key]
@@ -136,10 +167,12 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
                         eaAttr.Default = yDict[key][nKey][0]
             elif not isinstance(yDict[key],list) and not isinstance(yDict[key],dict):    
                 eaAttr.Default = yDict[key] 
+            if eaAttr.Type == "Boolean" and eaAttr.Default == "0":
+                eaAttr.Default = "false"    
         elif key == 'minItems':
             printTS('Minimum items: ' + str(yDict[key]))    
             eaAttr.LowerBound = yDict[key] 
-            eaAttr.UpperBound = "*"
+            ## eaAttr.UpperBound = "*"
         elif key == 'maxItems':
             printTS('Maximum items: ' + str(yDict[key]))    
             eaAttr.UpperBound = yDict[key] 
@@ -166,21 +199,31 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
                 printTS("Enumeration value: " + eaDTattr.Name)	
                 eaDTel.Attributes.Refresh()
         elif key == '$ref':
-            strRef = yDict[key].split("/")[-1] + "Type"
+            strRef = yDict[key].split("/")[-1]
+            if not strRef.endswith('Container'):
+                strRef += "Type"
             strRef = strRef[0].upper() + strRef[1:]
             printTS('Attributeref: ' + strRef)
             eaAttr.Type = strRef      
         elif key == 'items':
+            # items in an array
             for eKey in yDict[key]:
                 if eKey == "$ref":
-                    strRef = yDict[key][eKey].split("/")[-1] + "Type"
+                    # Reference to another property type
+                    strRef = yDict[key][eKey].split("/")[-1]
+                    if not strRef.endswith('Container'):
+                        strRef += "Type"
                     strRef = strRef[0].upper() + strRef[1:]
                     printTS('Attributeref: ' + strRef)
                     eaAttr.Type = strRef
+                elif eKey == "type":
+                    # Primitive type
+                    strType = yDict[key][eKey]
+                    printTS('Item property type: ' + strType)
+                    eaAttr = convert2ISOtypes(eaRepo,eaAttr,strType)
             #     eaDTattr.Update()
 
             #     eaDTel.Attributes.Refresh()           
-
 
     eaAttr.Update()        
     return eaAttr

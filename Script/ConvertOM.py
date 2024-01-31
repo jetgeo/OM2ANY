@@ -73,8 +73,9 @@ for folder, subfolders, files in os.walk(schemaFolder):
                 sys.exit()
 
             #Uppercase first character in name    
-            strName = file_name[0].upper() + file_name[1:]
-
+            strName = file_name[0].upper() + file_name[1:]      
+            strAlias = ""
+            lstReq = []
             #Start processing schema
             for i in yaml_dict:
                 if i == 'title':
@@ -83,6 +84,11 @@ for folder, subfolders, files in os.walk(schemaFolder):
                 elif i == 'description':
                     strDef = yaml_dict[i]
                     printTS('Description: ' + strDef)
+                elif i == 'required':
+                   # List of which of the subsequent properties are required
+                   printTS('Required properties: ' + str(yaml_dict[i]))
+                   # Create a list of required properties 
+                   lstReq = yaml_dict[i]
                 elif i == '$defs':
 			        # Definition statements
                     printTS('Global properties')
@@ -90,6 +96,8 @@ for folder, subfolders, files in os.walk(schemaFolder):
                     for j in yaml_dict[i]:
                         if (j == 'propertyDefinitions') :
                             strName = eaPck.Name + "Defs"
+                            if file != 'defs.yaml':
+                                strAlias = ""
                             eaEl = getOrCreateElementByName(eaPck,strName,"Class", "featureType",True, strAlias,strDef,True)
                             # This is where the global properties are defined
                             printTS('Processing global properties')
@@ -98,18 +106,57 @@ for folder, subfolders, files in os.walk(schemaFolder):
                             printTS('Processing property containers')
                             for pC in yaml_dict[i][j]:
                                 strName = pC[0].upper() + pC[1:]
+                                strAlias = ""
+                                strDef = ""
+                                lstReq = []
                                 for p in yaml_dict[i][j][pC]:
-                                    strAlias = ""
-                                    strDef = ""
                                     if p == 'title':
                                         strAlias = yaml_dict[i][j][pC][p]
                                         printTS('Title: ' + strAlias)
                                     elif p == 'description':
                                         strDef = yaml_dict[i][j][pC][p]
                                         printTS('Description: ' + strDef)
+                                    elif p == 'required':
+                                        # List of which of the subsequent properties are required
+                                        printTS('Required properties: ' + str(yaml_dict[i][j][pC][p]))
+                                        # Create a list of required properties 
+                                        lstReq = yaml_dict[i][j][pC][p]
                                     elif p == 'properties':
                                         eaEl = getOrCreateElementByName(eaPck,strName,"DataType", "",False,strAlias,strDef,True)
-                                        eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yaml_dict[i][j][pC][p])
+                                        eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yaml_dict[i][j][pC][p],lstReq)
+                                    elif p == 'items':  
+                                        # Content is an array 
+                                        printTS('Container with array only: ' + strName)
+                                        eaEl = getOrCreateElementByName(eaPck,strName,"DataType", "",False,strAlias,strDef,True)
+                                        # Create data type for the array item
+                                        strItemDT = strName.replace("Container", "Type")
+                                        strDef = ""
+                                        lstReq = []
+                                        for pi in yaml_dict[i][j][pC][p]: 
+                                            if pi == 'description':
+                                                strDef = yaml_dict[i][j][pC][p][pi]
+                                                printTS('Item description: ' + strDef)
+                                            elif pi == 'required':
+                                                # List of which of the subsequent properties are required
+                                                printTS('Required item properties: ' + str(yaml_dict[i][j][pC][p][pi]))
+                                                # Create a list of required properties 
+                                                lstReq = yaml_dict[i][j][pC][pi]
+                                            elif pi == 'properties':
+                                                eaDTEl = getOrCreateElementByName(eaPck,strItemDT,"DataType", "",False,strAlias,strDef,True)
+                                                # Create property type for the array item
+                                                strAName = pC.replace("Container", "Item") 
+                                                eaAttr = eaEl.Attributes.AddNew(strAName,"")
+                                                eaAttr.Visibility = "Public"
+                                                # Default cardinality 1. May be overruled by minItems and maxItems
+                                                eaAttr.LowerBound = "1"
+                                                eaAttr.UpperBound = "1"
+                                                eaAttr.Type = strItemDT
+                                                eaAttr.ClassifierID = eaDTEl.ElementID
+                                                eaAttr.Update()
+                                                printTS('Added item property:"' + eaAttr.Name + '"')
+                                                # Add property types for the array item data type
+                                                eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaDTEl,yaml_dict[i][j][pC][p][pi],lstReq)
+
                 elif i == 'properties':
                     printTS('Feature class properties') 
                     # Get or create Thematic Class, delete all existing attributes 	
@@ -117,7 +164,7 @@ for folder, subfolders, files in os.walk(schemaFolder):
                     strName = file_name[0].upper() + file_name[1:]
                     eaEl = getOrCreateElementByName(eaPck,strName,"Class", "featureType",False,strAlias,strDef,True)
                     # process properties 
-                    eaEl = createAttributesFromYAMLDictionary(eaRepo, eaPck, eaEl,yaml_dict[i])
+                    eaEl = createAttributesFromYAMLDictionary(eaRepo, eaPck, eaEl,yaml_dict[i],lstReq)
 
             eaPck.Elements.Refresh()
             #printTS("")
@@ -153,7 +200,10 @@ for folder, subfolders, files in os.walk(schemaFolder):
     ePIF.LayoutDiagramEx(eDgr.DiagramGUID, 4, 4, 20, 20, True)
     eaRepo.CloseDiagram(eDgr.DiagramID)
 
-# Find all uses of data types and enumerations, and set correct ClassifierID
+# ---------------------------------------------------------------------------------------------------------------------
+# Cleanup for the complete model
+
+# Find all uses of data types and enumerations, and set correct type name and ClassifierID
 printTS('Use of enumerations and datatypes everywhere...')
 for eaDTpck in omMod.Packages:
     for eaDTel in eaDTpck.Elements:
@@ -164,13 +214,14 @@ for eaDTpck in omMod.Packages:
                 for eaEl in eaPck.Elements:
                     for eaAttr in eaEl.Attributes:
                         if eaAttr.Type == eaDTel.Name:
-                            printTS('Attribute: "' + eaEl.Name + '.' + eaAttr.Name + ' (' + eaAttr.Type + ')')
+                            eaAttr.Type = eaDTel.Name
                             eaAttr.ClassifierID = eaDTel.ElementID
                             eaAttr.Update()
+                            printTS('Attribute: "' + eaEl.Name + '.' + eaAttr.Name + ' (' + eaAttr.Type + ')')
                     eaEl.Attributes.Refresh()        
 
 
-# Fix attribute type and ClassifierID for attributes that are still missing ClassifierID
+# Fix attribute type and ClassifierID for attributes that are still missing ClassifierID due to wrong use of "Type"
 # If there exists another attribute in a Defs class with the Type name, without "Type" --> use the same Type as that one. 
 printTS('Fix missing ClassifierIDs...')
 for eaPck in omMod.Packages:
@@ -187,9 +238,18 @@ for eaPck in omMod.Packages:
                             if eaDTel.Name[-4:] == "Defs":
                                 for eaDTattr in eaDTel.Attributes:
                                     if eaDTattr.Name ==strType:
-                                        printTS('Attribute found: "' + eaDTel.Name + '.' + eaDTattr.Name + ' (' + eaDTattr.Type + ')')
+                                        printTS('Referenced attribute found: "' + eaDTel.Name + '.' + eaDTattr.Name + ' (' + eaDTattr.Type + ')')
+                                        # Copy type and Classifier
                                         eaAttr.Type = eaDTattr.Type
                                         eaAttr.ClassifierID = eaDTattr.ClassifierID
+                                        # Copy cardinality if default
+                                        if eaAttr.LowerBound == "0":
+                                            eaAttr.LowerBound = eaDTattr.LowerBound
+                                        if eaAttr.UpperBound == "1":
+                                            eaAttr.UpperBound = eaDTattr.UpperBound
+                                        # Copy definition if not set    
+                                        if eaAttr.Notes == "":
+                                            eaAttr.Notes = eaDTattr.Notes
                                         eaAttr.Update()
             eaEl.Attributes.Refresh()  
 
@@ -198,4 +258,4 @@ for eaPck in omMod.Packages:
 printTS("------------- DONE ------------------")
 
 
-closeEA(eaRepo)
+# closeEA(eaRepo)
