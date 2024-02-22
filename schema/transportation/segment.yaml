@@ -377,6 +377,7 @@ properties:
         A tripe that uniquely identifies that target
         of a relation
       type: object
+      required: [segmentId, connectorId]
       properties:
         segmentId:
           description: >-
@@ -392,7 +393,6 @@ properties:
             necessarily be conncted to the source of the relation (for example  signposts)
             (TODO replace with GERS ID)
           type: string
-      required: [segmentId, connectorId]
   propertyContainers:
     atRangeContainer:
       description: >-
@@ -475,7 +475,7 @@ properties:
       type: array
       items:
         oneOf:
-          - "$ref": "#/$defs/propertyDefinitions/accessOption"
+          - "$ref": "#/$defs/propertyDefinitions/accessOption"  
           - type: object
             oneOf:
               - required: [ allowed ]

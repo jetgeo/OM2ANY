@@ -10,6 +10,7 @@ def printTS(message):
 
 def openEAapp():
     #Open EA 
+    # On error: Remove "C:\Users\JETKNU\AppData\Local\Temp\gen_py"
     printTS('Hi EA - are you there? ')
     eaApp = win32.gencache.EnsureDispatch('EA.App')
     printTS('I am here')
@@ -94,9 +95,8 @@ def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict,reqProps=[]):
             printTS('Added property:"' + eaAttr.Name + '"')
 
             ## Get type, definition etc    
-            eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict[key])
-
-            eaEl.Attributes.Refresh()
+            eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict[key])       
+            eaEl.Attributes.Refresh()           
     return eaEl
 
 def convert2ISOtypes(eaRepo,eaAttr,strType):
@@ -206,20 +206,21 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
             eaAttr.Type = strRef      
         elif key == 'items':
             # items in an array
-            for eKey in yDict[key]:
-                if eKey == "$ref":
-                    # Reference to another property type
-                    strRef = yDict[key][eKey].split("/")[-1]
-                    if not strRef.endswith('Container'):
-                        strRef += "Type"
-                    strRef = strRef[0].upper() + strRef[1:]
-                    printTS('Attributeref: ' + strRef)
-                    eaAttr.Type = strRef
-                elif eKey == "type":
-                    # Primitive type
-                    strType = yDict[key][eKey]
-                    printTS('Item property type: ' + strType)
-                    eaAttr = convert2ISOtypes(eaRepo,eaAttr,strType)
+            eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict[key])
+            # for eKey in yDict[key]:
+            #     if eKey == "$ref":
+            #         # Reference to another property type
+            #         strRef = yDict[key][eKey].split("/")[-1]
+            #         if not strRef.endswith('Container'):
+            #             strRef += "Type"
+            #         strRef = strRef[0].upper() + strRef[1:]
+            #         printTS('Attributeref: ' + strRef)
+            #         eaAttr.Type = strRef
+            #     elif eKey == "type":
+            #         # Primitive type
+            #         strType = yDict[key][eKey]
+            #         printTS('Item property type: ' + strType)
+            #         eaAttr = convert2ISOtypes(eaRepo,eaAttr,strType)
         elif key == 'prefixItems':
             # prefixItems is an array, where each item is a schema that corresponds to each index of the document's array. 
             # That is, an array where the first element validates the first element of the input array, 

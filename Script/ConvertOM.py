@@ -147,9 +147,9 @@ for folder, subfolders, files in os.walk(schemaFolder):
                                                 strAName = pC.replace("Container", "Item") 
                                                 eaAttr = eaEl.Attributes.AddNew(strAName,"")
                                                 eaAttr.Visibility = "Public"
-                                                # Default cardinality 1. May be overruled by minItems and maxItems
+                                                # Default cardinality 1..*. May be overruled by minItems and maxItems
                                                 eaAttr.LowerBound = "1"
-                                                eaAttr.UpperBound = "1"
+                                                eaAttr.UpperBound = "*"
                                                 eaAttr.Type = strItemDT
                                                 eaAttr.ClassifierID = eaDTEl.ElementID
                                                 eaAttr.Update()
@@ -165,7 +165,7 @@ for folder, subfolders, files in os.walk(schemaFolder):
                     eaEl = getOrCreateElementByName(eaPck,strName,"Class", "featureType",False,strAlias,strDef,True)
                     # process properties 
                     eaEl = createAttributesFromYAMLDictionary(eaRepo, eaPck, eaEl,yaml_dict[i],lstReq)
-
+                # TODO: Handling allOff (e.g. Segment.AccessContainer), oneOf (e.g. Segment.modesContainer and AccessContainer)...
             eaPck.Elements.Refresh()
             #printTS("")
 
