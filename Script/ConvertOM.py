@@ -132,6 +132,7 @@ for folder, subfolders, files in os.walk(schemaFolder):
                                         strItemDT = strName.replace("Container", "Type")
                                         strDef = ""
                                         lstReq = []
+                                        delAttr = True 
                                         for pi in yaml_dict[i][j][pC][p]: 
                                             if pi == 'description':
                                                 strDef = yaml_dict[i][j][pC][p][pi]
@@ -141,21 +142,27 @@ for folder, subfolders, files in os.walk(schemaFolder):
                                                 printTS('Required item properties: ' + str(yaml_dict[i][j][pC][p][pi]))
                                                 # Create a list of required properties 
                                                 lstReq = yaml_dict[i][j][pC][pi]
-                                            elif pi == 'properties':
-                                                eaDTEl = getOrCreateElementByName(eaPck,strItemDT,"DataType", "",False,strAlias,strDef,True)
-                                                # Create property type for the array item
-                                                strAName = pC.replace("Container", "Item") 
-                                                eaAttr = eaEl.Attributes.AddNew(strAName,"")
-                                                eaAttr.Visibility = "Public"
-                                                # Default cardinality 1..*. May be overruled by minItems and maxItems
-                                                eaAttr.LowerBound = "1"
-                                                eaAttr.UpperBound = "*"
-                                                eaAttr.Type = strItemDT
-                                                eaAttr.ClassifierID = eaDTEl.ElementID
-                                                eaAttr.Update()
-                                                printTS('Added item property:"' + eaAttr.Name + '"')
+                                            elif pi == 'properties' or pi == 'allOf':
+                                                eaDTEl = getOrCreateElementByName(eaPck,strItemDT,"DataType", "",False,strAlias,strDef,delAttr)
+                                                if delAttr:
+                                                    # Create property type for the array item
+                                                    strAName = pC.replace("Container", "Item") 
+                                                    eaAttr = eaEl.Attributes.AddNew(strAName,"")
+                                                    eaAttr.Visibility = "Public"
+                                                    # Default cardinality 1..*. May be overruled by minItems and maxItems
+                                                    eaAttr.LowerBound = "1"
+                                                    eaAttr.UpperBound = "*"
+                                                    eaAttr.Type = strItemDT
+                                                    eaAttr.ClassifierID = eaDTEl.ElementID
+                                                    eaAttr.Update()
+                                                    printTS('Added item property:"' + eaAttr.Name + '"')
+                                                    delAttr = False #Delete attributes only for the first of properties or anyOf
                                                 # Add property types for the array item data type
-                                                eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaDTEl,yaml_dict[i][j][pC][p][pi],lstReq)
+                                                if pi == 'allOf':
+                                                    lb = 1 #Lower bound = 1
+                                                else:
+                                                    lb = 0    
+                                                eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaDTEl,yaml_dict[i][j][pC][p][pi],lstReq,lb)
 
                 elif i == 'properties':
                     printTS('Feature class properties') 
