@@ -189,20 +189,20 @@ for folder, subfolders, files in os.walk(schemaFolder):
         eDgr.Update()
         eaPck.Diagrams.Refresh()
         printTS('Created diagram "' + eDgr.Name + '"')
+    
+    #Remove all all elements and add again, for autosizing
+    for idx in range(eDgr.DiagramObjects.Count):
+        eDgr.DiagramObjects.DeleteAt(idx,False)
+    eDgr.DiagramObjects.Refresh()        
     for eaEl in eaPck.Elements:
-        inDiagram = False
-        for eDgrObj in eDgr.DiagramObjects:
-            if eDgrObj.ElementID == eaEl.ElementID:
-                inDiagram = True
-        if not inDiagram:  
-            eDgrObj = eDgr.DiagramObjects.AddNew("","")
-            eDgrObj.ElementID = eaEl.ElementID
-            eDgrObj.Update()
-            printTS('Added diagramobject "' + eaEl.Name + '"')
-        else:
-            printTS('Diagramobject already in diagram: "' + eaEl.Name + '"')
+        eDgrObj = eDgr.DiagramObjects.AddNew("","")
+        eDgrObj.ElementID = eaEl.ElementID
+        # Make sure constraints are shown in all elements
+        eDgrObj.ElementDisplayMode = 1
+        eDgrObj.ShowConstraints = True
+        eDgrObj.Update()
+        printTS('Added diagramobject "' + eaEl.Name + '"')
     eDgr.Update()
-
     ePIF = eaRepo.GetProjectInterface()
     ePIF.LayoutDiagramEx(eDgr.DiagramGUID, 4, 4, 20, 20, True)
     eaRepo.CloseDiagram(eDgr.DiagramID)
@@ -219,18 +219,27 @@ for eaDTpck in omMod.Packages:
             printTS(eaDTel.Type + ": " + eaDTel.Name)
             for eaPck in omMod.Packages:
                 for eaEl in eaPck.Elements:
+                    #For enumerations: Check if it is used in a constraint, with "Type" instead of "Enum"
+                    for eaConstraint in eaEl.Constraints:
+                        if eaDTel.Type == "Enumeration" and eaDTel.Name[0:-4] in eaConstraint.Name:
+                            eaConstraint.Name = eaConstraint.Name.replace(eaDTel.Name[0:-4] + 'Type', eaDTel.Name[0:-4] + 'Enum')
+                            eaConstraint.Update()
+
+                    #Check if the type name matches the element name (minus the four last characters, that can be 'Type' og 'Enum')
                     for eaAttr in eaEl.Attributes:
-                        if eaAttr.Type == eaDTel.Name:
+                        if eaAttr.Type[0:-4] == eaDTel.Name[0:-4]:
                             eaAttr.Type = eaDTel.Name
                             eaAttr.ClassifierID = eaDTel.ElementID
                             eaAttr.Update()
                             printTS('Attribute: "' + eaEl.Name + '.' + eaAttr.Name + ' (' + eaAttr.Type + ')')
-                    eaEl.Attributes.Refresh()        
+                    eaEl.Attributes.Refresh()  
+
+                   
 
 
 # Fix attribute type and ClassifierID for attributes that are still missing ClassifierID due to wrong use of "Type"
 # If there exists another attribute in a Defs class with the Type name, without "Type" --> use the same Type as that one. 
-printTS('Fix missing ClassifierIDs...')
+printTS('Fix missing data types and ClassifierIDs...')
 for eaPck in omMod.Packages:
     for eaEl in eaPck.Elements:
         if eaEl.Type == "Class" or eaEl.Type == "DataType":
@@ -258,8 +267,7 @@ for eaPck in omMod.Packages:
                                         if eaAttr.Notes == "":
                                             eaAttr.Notes = eaDTattr.Notes
                                         eaAttr.Update()
-            eaEl.Attributes.Refresh()  
-
+            eaEl.Attributes.Refresh() 
 
 
 printTS("------------- DONE ------------------")

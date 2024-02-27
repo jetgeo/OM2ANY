@@ -60,6 +60,11 @@ def getOrCreateElementByName(eaPck,strName,elType, stType, absCls,strAlias,strDe
         for idx in range(eaEl.Attributes.Count):
             eaEl.Attributes.DeleteAt(idx,False)
         eaEl.Attributes.Refresh()
+        #Delete all existing constraints
+        for idx in range(eaEl.Constraints.Count):
+            eaEl.Constraints.DeleteAt(idx,False)
+        eaEl.Constraints.Refresh()
+
 
     return eaEl
 
@@ -139,6 +144,7 @@ def convert2ISOtypes(eaRepo,eaAttr,strType):
 def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
 # Convert attribute type, definition etc.  
     lstReq = [] 
+    strType = ''
     for key in yDict:
         if key == 'type':
             strType = yDict[key]
@@ -214,7 +220,9 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
                 eaDTel.Attributes.Refresh()
         elif key == '$ref':
             strRef = yDict[key].split("/")[-1]
-            if not strRef.endswith('Container'):
+            if strRef.endswith('.json'):
+                strRef = strRef.removesuffix('.json')
+            elif not strRef.endswith('Container'):
                 strRef += "Type"
             strRef = strRef[0].upper() + strRef[1:]
             printTS('Attributeref: ' + strRef)
@@ -246,26 +254,37 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
                     #printTS(str(nameDict[strIndex]))
                     speedDict.update({nameDict[strIndex]:pDict })
                 eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaDTel,speedDict)
-
-            #     eaDTattr.Update()
-
-            #     eaDTel.Attributes.Refresh()           
-
         elif key == 'allOf':
-            # Add attributes to the data type 
-            # if eaDTel != Nothing:
-            printTS(key + ' ' )
-            # eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq,1)         
-            # or: set data type for the attribute
-        
-        
-        # elif key == 'oneOf':
-        #     # possibly different value types for property values
-        #     for eKey in yDict[key]:
-        #         if eKey == 'type':
-        #             printTS('Type: ' + yDict[key][eKey])
-        #         if eKey == 'type':
-        #             printTS('Type: ' + yDict[key][eKey])
+            # allOf for the value type of the property type or allOf attributes for a object type
+            printTS(key + ' statement' )
+            if strType == 'object':
+                # add properties as for 
+                eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq,1)
+            else:
+                for eKey in yDict[key]:
+                    eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,eKey)
+                eaAttr.LowerBound = 1    
+            #
+        elif key == 'oneOf':
+            # oneOf for the value type of the property type --> selection of value types
+            printTS(key + ' statement' )
+            lstTypes = []
+            for eKey in yDict[key]:
+                eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,eKey) 
+                if eaAttr.Type not in lstTypes:
+                    lstTypes.append(eaAttr.Type)
+            if len(lstTypes) > 1:
+                # Different types for each alternative. No type + constraint
+                printTS(lstTypes)
+                strOCL = 'context ' + eaEl.Name + ' inv:'
+                for alt in lstTypes:
+                    strOCL += ' self.' + eaAttr.Name + '.oclIsTypeOf(' + alt + ') or'
+                strOCL = strOCL.rstrip(' or')
+
+                eaConstraint = eaEl.Constraints.AddNew(strOCL,'OCL')
+                eaConstraint.Update()
+                
+                eaAttr.Type = ''
 
     eaAttr.Update()        
     return eaAttr
