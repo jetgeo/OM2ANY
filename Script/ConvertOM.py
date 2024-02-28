@@ -124,13 +124,26 @@ for folder, subfolders, files in os.walk(schemaFolder):
                                     elif p == 'properties':
                                         eaEl = getOrCreateElementByName(eaPck,strName,"DataType", "",False,strAlias,strDef,True)
                                         eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yaml_dict[i][j][pC][p],lstReq)
+                                    elif p == 'oneOf':
+                                        eaEl = getOrCreateElementByName(eaPck,strName,"DataType", "",False,strAlias,strDef,True)
+                                        # Create attribute"
+                                        strAName = pC.replace("Container", "") 
+                                        eaAttr = eaEl.Attributes.AddNew(strAName,"")
+                                        eaAttr.Visibility = "Public"
+                                        # Default cardinality 0..1. May be overruled by minItems and maxItems and list of required properties
+                                        eaAttr.LowerBound = "0"
+                                        eaAttr.UpperBound = "1"
+                                        eaAttr.Update()
+                                        printTS('Added property:"' + eaAttr.Name + '"')
+                                        # Run "oneOf" process as for any other property
+                                        eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yaml_dict[i][j][pC][p])
                                     elif p == 'items':  
-                                        # Content is an array 
+                                        # Content is an array. Needs special treatment...
                                         printTS('Container with array only: ' + strName)
                                         eaEl = getOrCreateElementByName(eaPck,strName,"DataType", "",False,strAlias,strDef,True)
-                                        # Create data type for the array item
                                         strItemDT = strName.replace("Container", "Type")
                                         strDef = ""
+                                        strOCL = ""
                                         lstReq = []
                                         delAttr = True 
                                         for pi in yaml_dict[i][j][pC][p]: 
@@ -142,27 +155,46 @@ for folder, subfolders, files in os.walk(schemaFolder):
                                                 printTS('Required item properties: ' + str(yaml_dict[i][j][pC][p][pi]))
                                                 # Create a list of required properties 
                                                 lstReq = yaml_dict[i][j][pC][pi]
-                                            elif pi == 'properties' or pi == 'allOf':
-                                                eaDTEl = getOrCreateElementByName(eaPck,strItemDT,"DataType", "",False,strAlias,strDef,delAttr)
+                                            elif pi == 'anyOf':
+                                                # Create constraint in the data type for the array
+                                                strOCL = 'inv:' #'context ' + eaEl.Name + ' inv:'
+                                                for req in yaml_dict[i][j][pC][p][pi]:
+                                                    if type(req) == dict:
+                                                        for reqP in req:
+                                                            if reqP == 'required':
+                                                                for reqI in req[reqP]:
+                                                                    strOCL += ' self.' + str(reqI) + '->notEmpty()' 
+                                                    strOCL += ' or'            
+                                                strOCL = strOCL.rstrip(' or')
+                                            elif pi == 'properties' or pi == 'allOf' or pi == 'oneOf':
                                                 if delAttr:
                                                     # Create property type for the array item
-                                                    strAName = pC.replace("Container", "Item") 
+                                                    strAName = pC.replace("Container", "") 
                                                     eaAttr = eaEl.Attributes.AddNew(strAName,"")
                                                     eaAttr.Visibility = "Public"
-                                                    # Default cardinality 1..*. May be overruled by minItems and maxItems
-                                                    eaAttr.LowerBound = "1"
                                                     eaAttr.UpperBound = "*"
-                                                    eaAttr.Type = strItemDT
-                                                    eaAttr.ClassifierID = eaDTEl.ElementID
                                                     eaAttr.Update()
                                                     printTS('Added item property:"' + eaAttr.Name + '"')
-                                                    delAttr = False #Delete attributes only for the first of properties or anyOf
-                                                # Add property types for the array item data type
                                                 if pi == 'allOf':
                                                     lb = 1 #Lower bound = 1
                                                 else:
                                                     lb = 0    
-                                                eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaDTEl,yaml_dict[i][j][pC][p][pi],lstReq,lb)
+                                                if pi == 'properties' or pi == 'allOf':
+                                                    eaDTEl = getOrCreateElementByName(eaPck,strItemDT,"DataType", "",False,strAlias,strDef,delAttr)
+                                                    if delAttr:
+                                                        eaAttr.Type = strItemDT
+                                                        eaAttr.ClassifierID = eaDTEl.ElementID
+                                                        eaAttr.Update()
+                                                        if strOCL != "":
+                                                            eaConstraint = eaDTEl.Constraints.AddNew(strOCL,'OCL')
+                                                            eaConstraint.Update()
+                                                    # Add attributes for the data type
+                                                    eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck,eaDTEl,yaml_dict[i][j][pC][p][pi],lstReq,lb)
+                                                elif pi == 'oneOf':
+                                                    # Run "oneOf" process as for any other property
+                                                    eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yaml_dict[i][j][pC][p])
+                                                delAttr = False #Delete attributes only for the first of properties or anyOf                                                # TODO: oneOf -> one level higher. Important to have the oneOf statement
+
 
                 elif i == 'properties':
                     printTS('Feature class properties') 
@@ -172,40 +204,10 @@ for folder, subfolders, files in os.walk(schemaFolder):
                     eaEl = getOrCreateElementByName(eaPck,strName,"Class", "featureType",False,strAlias,strDef,True)
                     # process properties 
                     eaEl = createAttributesFromYAMLDictionary(eaRepo, eaPck, eaEl,yaml_dict[i],lstReq)
-                # TODO: Handling allOff (e.g. Segment.AccessContainer), oneOf (e.g. Segment.modesContainer and AccessContainer)...
+                # TODO: Handling oneOf (e.g. Segment.modesContainer and AccessContainer)...
             eaPck.Elements.Refresh()
             #printTS("")
 
-
-    # -------------------- Diagram -------------------------------------------
-    try:
-        eDgr = eaPck.Diagrams.GetByName(eaPck.Name)
-    except:
-        eDgr = None
-    if eDgr != None:
-        printTS('Found diagram "' + eDgr.Name + '"')
-    else:
-        eDgr = eaPck.Diagrams.AddNew(eaPck.Name,"")
-        eDgr.Update()
-        eaPck.Diagrams.Refresh()
-        printTS('Created diagram "' + eDgr.Name + '"')
-    
-    #Remove all all elements and add again, for autosizing
-    for idx in range(eDgr.DiagramObjects.Count):
-        eDgr.DiagramObjects.DeleteAt(idx,False)
-    eDgr.DiagramObjects.Refresh()        
-    for eaEl in eaPck.Elements:
-        eDgrObj = eDgr.DiagramObjects.AddNew("","")
-        eDgrObj.ElementID = eaEl.ElementID
-        # Make sure constraints are shown in all elements
-        eDgrObj.ElementDisplayMode = 1
-        eDgrObj.ShowConstraints = True
-        eDgrObj.Update()
-        printTS('Added diagramobject "' + eaEl.Name + '"')
-    eDgr.Update()
-    ePIF = eaRepo.GetProjectInterface()
-    ePIF.LayoutDiagramEx(eDgr.DiagramGUID, 4, 4, 20, 20, True)
-    eaRepo.CloseDiagram(eDgr.DiagramID)
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Cleanup for the complete model
@@ -232,10 +234,7 @@ for eaDTpck in omMod.Packages:
                             eaAttr.ClassifierID = eaDTel.ElementID
                             eaAttr.Update()
                             printTS('Attribute: "' + eaEl.Name + '.' + eaAttr.Name + ' (' + eaAttr.Type + ')')
-                    eaEl.Attributes.Refresh()  
-
-                   
-
+                    eaEl.Attributes.Refresh()                 
 
 # Fix attribute type and ClassifierID for attributes that are still missing ClassifierID due to wrong use of "Type"
 # If there exists another attribute in a Defs class with the Type name, without "Type" --> use the same Type as that one. 
@@ -269,6 +268,80 @@ for eaPck in omMod.Packages:
                                         eaAttr.Update()
             eaEl.Attributes.Refresh() 
 
+#Remove attributes with data type "*Container" and copy all attributes from the Container Data Type
+printTS('Fix Container types...')
+for eaPck in omMod.Packages:
+    for eaEl in eaPck.Elements:
+        if eaEl.Type == "Class" or eaEl.Type == "DataType":
+            pos = 0
+            sorted_list = []
+            for idx in range(eaEl.Attributes.Count):
+                eaAttr = eaEl.Attributes.GetAt(idx)
+                if not eaAttr.Type.endswith('Container'):
+                   # Set position, taking into account the new attributes from the Container
+                   pos += 1
+                   eaAttr.Pos = pos
+                   eaAttr.Update() 
+                   printTS(str(eaAttr.Name) + ' New position: ' + str(pos))
+                else:
+                    printTS('Copy attributes from container type: ' + eaAttr.Type)
+                    # get datatype element by ClassifierID
+                    try:
+                        eaDTel = eaRepo.GetElementByID(eaAttr.ClassifierID)
+                        # copy all attributes from datatype, starting pos = eaAttr.pos
+                        for eaDTAttr in eaDTel.Attributes:
+                            pos += 1
+                            newAttr = eaEl.Attributes.AddNew(eaDTAttr.Name,"")
+                            newAttr.Type = eaDTAttr.Type
+                            newAttr.ClassifierID = eaDTAttr.ClassifierID
+                            newAttr.Notes = eaDTAttr.Notes
+                            newAttr.LowerBound = eaDTAttr.LowerBound
+                            newAttr.UpperBound = eaDTAttr.UpperBound
+                            newAttr.Default = eaDTAttr.Default
+                            newAttr.Pos = pos
+                            newAttr.Update()
+                            printTS(str(newAttr.Name) + ' Position: ' + str(pos))
+                        for eaConstraint in eaDTel.Constraints:
+                            # Copy constraints from the container
+                            newConstraint = eaEl.Constraints.AddNew(eaConstraint.Name, 'OCL')
+                            newConstraint.Update()
+                        # Delete original attribute
+                        eaEl.Attributes.DeleteAt(idx,False)     
+                    except Exception as e:
+                        printTS(f"An exception occurred: {type(e).__name__} - {e}")                  
+            eaEl.Attributes.Refresh()
+
+# -------------------- Diagram -------------------------------------------
+printTS('Creating diagrams...')
+for eaPck in omMod.Packages:
+    try:
+        eDgr = eaPck.Diagrams.GetByName(eaPck.Name)
+    except:
+        eDgr = None
+    if eDgr != None:
+        printTS('Found diagram "' + eDgr.Name + '"')
+    else:
+        eDgr = eaPck.Diagrams.AddNew(eaPck.Name,"")
+        eDgr.Update()
+        eaPck.Diagrams.Refresh()
+        printTS('Created diagram "' + eDgr.Name + '"')
+    
+    #Remove all all elements and add again, for autosizing
+    for idx in range(eDgr.DiagramObjects.Count):
+        eDgr.DiagramObjects.DeleteAt(idx,False)
+    eDgr.DiagramObjects.Refresh()        
+    for eaEl in eaPck.Elements:
+        eDgrObj = eDgr.DiagramObjects.AddNew("","")
+        eDgrObj.ElementID = eaEl.ElementID
+        # Make sure constraints are shown in all elements
+        eDgrObj.ElementDisplayMode = 1
+        eDgrObj.ShowConstraints = True
+        eDgrObj.Update()
+        printTS('Added diagramobject "' + eaEl.Name + '"')
+    eDgr.Update()
+    ePIF = eaRepo.GetProjectInterface()
+    ePIF.LayoutDiagramEx(eDgr.DiagramGUID, 4, 4, 20, 20, True)
+    eaRepo.CloseDiagram(eDgr.DiagramID)
 
 printTS("------------- DONE ------------------")
 

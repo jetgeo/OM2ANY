@@ -141,7 +141,7 @@ def convert2ISOtypes(eaRepo,eaAttr,strType):
     eaAttr.Update()
     return eaAttr     
 
-def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
+def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict,delAttr=True):
 # Convert attribute type, definition etc.  
     lstReq = [] 
     strType = ''
@@ -150,16 +150,15 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
             strType = yDict[key]
             printTS('Property type: ' + strType)
             eaAttr.Type = strType
-            eaAttr = convert2ISOtypes(eaRepo,eaAttr,strType)
-
-            if strType == "object":
+            if strType != "object" and strType != "array":
+                eaAttr = convert2ISOtypes(eaRepo,eaAttr,strType)
+            elif strType == "object":
                 # object. Create (or get) data type
                 strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
-                eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,True)
+                eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,delAttr)
                 eaPck.Elements.Refresh()
                 eaAttr.Type = eaDTel.Name
                 eaAttr.ClassifierID = eaDTel.ClassifierID
-                # TODO: Add data type attributes... if 'properties
             elif strType == "array":
                 # array: 	Set datatype array first, then change from item value (last part if id + Type)
                 # Works for types that are object, not for linearPos, which is fixed at the end
@@ -173,7 +172,10 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
                 # Create a list of required properties
                 lstReq = yDict[key]
         elif key == 'properties':
-             eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq)       
+            # In case eaDTel not referenced. Create (or get) data type
+            strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
+            eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,False)
+            eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq)       
         elif key == 'description':
             printTS('Definition: ' + yDict[key])    
             eaAttr.Notes = yDict[key]
@@ -257,10 +259,11 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
         elif key == 'allOf':
             # allOf for the value type of the property type or allOf attributes for a object type
             printTS(key + ' statement' )
-            if strType == 'object':
-                # add properties as for 
+            if strType == 'object' and (len(yDict[key]) > 1 or 'properties' in yDict):
+                # add properties for the object data type
                 eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq,1)
             else:
+                # Set data type
                 for eKey in yDict[key]:
                     eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,eKey)
                 eaAttr.LowerBound = 1    
@@ -269,14 +272,33 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict):
             # oneOf for the value type of the property type --> selection of value types
             printTS(key + ' statement' )
             lstTypes = []
+            dA=True 
+            dtaCount = 0
+            strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
             for eKey in yDict[key]:
-                eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,eKey) 
+                eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,eKey,dA) 
+                if eaAttr.Type == strName:
+                    # Data type created for one option
+                    dtaCount += 1
+                    dA=False
                 if eaAttr.Type not in lstTypes:
                     lstTypes.append(eaAttr.Type)
+            if dtaCount > 1:
+                # More than one option added to the data type. Set lower bound = 0 and add constaint
+                printTS('More than one option!')
+                strOCL = 'inv:'
+                eaDTel = eaPck.Elements.GetByName(strName)
+                for eaDTAttr in eaDTel.Attributes:
+                    eaDTAttr.LowerBound = 0
+                    eaDTAttr.Update()
+                    strOCL += ' self.' + eaDTAttr.Name + '->notEmpty() or' 
+                strOCL = strOCL.rstrip(' or')
+                eaConstraint = eaDTel.Constraints.AddNew(strOCL,'OCL')
+                eaConstraint.Update()
             if len(lstTypes) > 1:
                 # Different types for each alternative. No type + constraint
                 printTS(lstTypes)
-                strOCL = 'context ' + eaEl.Name + ' inv:'
+                strOCL = 'inv:' #'context ' + eaEl.Name + ' inv:'
                 for alt in lstTypes:
                     strOCL += ' self.' + eaAttr.Name + '.oclIsTypeOf(' + alt + ') or'
                 strOCL = strOCL.rstrip(' or')
