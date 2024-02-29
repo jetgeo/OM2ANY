@@ -20,6 +20,13 @@ except Exception as e:
     sys.exit()
 
 printTS('Number of existing packages: ' + str(omMod.Packages.Count))
+for eaPck in omMod.Packages:
+    #Delete all existing elements
+    printTS('Deleting all elements in package ' + eaPck.Name)
+    for idx in range(eaPck.Elements.Count):
+        eaPck.Elements.DeleteAt(idx,False)
+    eaPck.Elements.Refresh()
+
 
 # -------------------------------------------------------------------------------------
 # Create a regular expression to match files with yaml extension
@@ -136,7 +143,15 @@ for folder, subfolders, files in os.walk(schemaFolder):
                                         eaAttr.Update()
                                         printTS('Added property:"' + eaAttr.Name + '"')
                                         # Run "oneOf" process as for any other property
-                                        eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yaml_dict[i][j][pC][p])
+                                        eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yaml_dict[i][j][pC])
+                                        # Process the dictionary (different structure )
+                                        # oneOfDict = yaml_dict[i][j][pC][p]
+
+
+
+
+
+
                                     elif p == 'items':  
                                         # Content is an array. Needs special treatment...
                                         printTS('Container with array only: ' + strName)
@@ -310,6 +325,43 @@ for eaPck in omMod.Packages:
                     except Exception as e:
                         printTS(f"An exception occurred: {type(e).__name__} - {e}")                  
             eaEl.Attributes.Refresh()
+
+# Remove unecessary prefixes in Enumeration and Data type names
+printTS('Remove unecessary prefixes...')
+lstNames = []
+#Build list of names
+for eaPck in omMod.Packages:
+    for eaEl in eaPck.Elements:  
+        if eaEl.Type == 'Enumeration' or eaEl.Type == 'DataType':  
+            lstNames.append(eaEl.Name)
+
+#Find enumerations and datatypes that starts with the name of another class or datatype
+lstPrefix = []        
+for eaPck in omMod.Packages:
+    for eaEl in eaPck.Elements:    
+        if eaEl.Type == 'Class' or eaEl.Type == 'DataType':
+            matching_items = [item for item in lstNames if item.startswith(eaEl.Name) and item != eaEl.Name]
+            if len(matching_items) > 0:
+                #Found matching items. Check if they will be unique without the prefix
+                printTS('')
+                printTS('--- Items with prefix ' + str(eaEl.Name) + '---')
+                printTS(matching_items)
+                for strName in matching_items:
+                    strName = strName.removeprefix(eaEl.Name)
+
+                    # build list of items that ends with the same name
+                    matching_item_parts = [subItem for subItem in lstNames if subItem.endswith(strName)]
+                    if len(matching_item_parts) > 1:
+                        printTS(strName)                        
+                        printTS(matching_item_parts)
+                    elif strName.startswith('Use'):
+                        #TODO: Fix LandUse...
+                        printTS('LandUse - need to fix somehow...')    
+                    else:
+                        printTS(eaEl.Name + strName + ' is unique without prefix, removing prefix!')    
+                        eaDTel = eaPck.Elements.GetByName(eaEl.Name + strName)
+                        eaDTel.Name = strName
+                        eaDTel.Update()
 
 # -------------------- Diagram -------------------------------------------
 printTS('Creating diagrams...')
