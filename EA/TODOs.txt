@@ -1,7 +1,0 @@
-//TODO:required --> how to use? Defines mandatory properties in data types?
-//TODO: unevaluatedProperties --> how to use?
-
-
-//TODO: Correct data type for AttributeCatalogue.language & NamePropertyType.language
-// AttributeCatalogue.language - oneOf...
-

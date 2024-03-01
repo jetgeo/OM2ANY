@@ -92,15 +92,30 @@ def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict,reqProps=[],lb=0)
                 printTS(str(key) + ' is a dictionary')
                 # create attribute name from ref
                 strName = ''
+                cp = False
                 for eKey in key:
                     if eKey == '$ref':
                         strName = key[eKey].split("/")[-1].replace("Container", "")
+                    elif eKey == 'title' and key[eKey] == "Conditional Properties":
+                        printTS("Conditional Properties")
+                        cp = True
+                    elif cp and eKey == 'if':
+                        #TODO: Loop and create constraint
+                        printTS("If statement: " )    
+                        printTS(key[eKey])
+
+                    elif cp and eKey == 'then':
+                        # Loop and create conditional properties 
+                        printTS("then statement") 
+                        for pKey in key[eKey]:
+                            if pKey == 'properties':
+                                eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaEl,key[eKey][pKey],[])
             else:
                 strName = key
             if strName != '':         
                 eaAttr = eaEl.Attributes.AddNew(strName,"")
                 eaAttr.Visibility = "Public"
-                eaAttr.Pos = pos
+                eaAttr.Pos = eaEl.Attributes.Count + 1 #pos
                 # Default cardinality 0..1. May be overruled by minItems and maxItems and list of required properties
                 if key in reqProps:
                     eaAttr.LowerBound = "1"
@@ -155,6 +170,12 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict,delAttr=True):
             elif strType == "object":
                 # object. Create (or get) data type
                 strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
+                # Speciality for restrictions (two different types - for rad and for lane)
+                if strName == 'RestrictionsType':
+                    if strName.endswith('Type'):
+                        strName = eaEl.Name[:-4] + strName
+                    else:
+                        strName = eaEl.Name + strName
                 eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,delAttr)
                 eaPck.Elements.Refresh()
                 eaAttr.Type = eaDTel.Name
@@ -174,6 +195,12 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict,delAttr=True):
         elif key == 'properties':
             # In case eaDTel not referenced. Create (or get) data type
             strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
+            # Speciality for restrictions (two different types - for rad and for lane)
+            if strName == 'RestrictionsType':
+                if strName.endswith('Type'):
+                    strName = eaEl.Name[:-4] + strName
+                else:
+                    strName = eaEl.Name + strName
             eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,False)
             eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq)       
         elif key == 'description':
