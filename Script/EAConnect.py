@@ -232,11 +232,12 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict,delAttr=True):
         elif key == 'items':
             # items in an array
             eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict[key])
-        elif key == 'prefixItems':
+        elif key == 'prefixItems' and not 'items' in yDict:
             # prefixItems is an array, where each item is a schema that corresponds to each index of the document's array. 
             # That is, an array where the first element validates the first element of the input array, 
             # the second element validates the second element of the input array, etc.
             # The array has only one occurence, as the multiplicity is within the array
+            # NOTE: Skips this if there's also an item occurency in the schema. To avoid trouble with NamesType.common....
             eaAttr.LowerBound = 0
             eaAttr.UpperBound = 1 
             # Create data type with properties for the array

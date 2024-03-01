@@ -146,12 +146,6 @@ for folder, subfolders, files in os.walk(schemaFolder):
                                         eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yaml_dict[i][j][pC])
                                         # Process the dictionary (different structure )
                                         # oneOfDict = yaml_dict[i][j][pC][p]
-
-
-
-
-
-
                                     elif p == 'items':  
                                         # Content is an array. Needs special treatment...
                                         printTS('Container with array only: ' + strName)
@@ -249,7 +243,11 @@ for eaDTpck in omMod.Packages:
                             eaAttr.ClassifierID = eaDTel.ElementID
                             eaAttr.Update()
                             printTS('Attribute: "' + eaEl.Name + '.' + eaAttr.Name + ' (' + eaAttr.Type + ')')
-                    eaEl.Attributes.Refresh()                 
+                            # Copy definition if not set    
+                            if eaAttr.Notes == "":
+                                eaAttr.Notes = eaDTel.Notes
+                            eaAttr.Update()
+                            eaEl.Attributes.Refresh()                 
 
 # Fix attribute type and ClassifierID for attributes that are still missing ClassifierID due to wrong use of "Type"
 # If there exists another attribute in a Defs class with the Type name, without "Type" --> use the same Type as that one. 
