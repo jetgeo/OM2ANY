@@ -6,7 +6,12 @@ description: Common schema definitions shared by all themes
   propertyDefinitions:
     id:
       type: string
-      description: A feature ID. This may be an ID associated with the Global Entity Reference System (GERS) if—and-only-if the feature represents an entity that is part of GERS.
+      description: >-
+        A feature ID. This may be an ID associated with the Global
+        Entity Reference System (GERS) if—and-only-if the feature
+        represents an entity that is part of GERS.
+      minLength: 1
+      pattern: ^(\S.*)?\S$    # Leading and trailing whitespace are not allowed.
     level:
       description: Z-order of the feature where 0 is visual level
       type: integer
@@ -15,13 +20,16 @@ description: Common schema definitions shared by all themes
       description: Specific feature type within the theme
       type: string
       enum:
-        - administrativeBoundary
-        - localityArea
+        - administrative_boundary # DEPRECATED
+        - boundary
         - building
         - connector
+        - division
+        - division_area
         - land
-        - landUse
-        - locality
+        - land_use
+        - locality                # DEPRECATED
+        - locality_area           # DEPRECATED
         - part
         - place
         - segment
@@ -30,7 +38,7 @@ description: Common schema definitions shared by all themes
       description: Timestamp when the feature was last updated
       type: string
       format: date-time
-      pattern: ^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[-+]\d{2}:\d{2})?$
+      pattern: ^([1-9]\d{3})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):([0-5]\d):([0-5]\d|60)(\.\d{1,3})?(Z|[-+]([01]\d|2[0-3]):[0-5]\d)$
       "$comment": >-
         Pattern is used as a fallback because not all JSON schema
         implementations treat "format" as an assertion, for some it is
@@ -48,7 +56,7 @@ description: Common schema definitions shared by all themes
       type: integer
       minimum: 0
       "$comment": >-
-        It might be reasonable to combine "updateTime" and "version"
+        It might be reasonable to combine "update_time" and "version"
         in a single "updateVersion" field which gives the last Overture
         version number in which the feature changed. The downside to
         doing this is that the number would cease to be indicative of
@@ -82,11 +90,11 @@ description: Common schema definitions shared by all themes
           type: string
         dataset:
           type: string
-        recordId:
+        record_id:
           type: string
           description: Refers to the specific record within the dataset that was used.
         confidence:
-          description: If the source data has a confidence value, especially for ml-derived data, record that here.
+          description: Confidence value from the source dataset, particularly relevant for ML-derived data.
           type: number
           minimum: 0
           maximum: 1
@@ -97,6 +105,7 @@ description: Common schema definitions shared by all themes
         - admins
         - base
         - buildings
+        - divisions
         - places
         - transportation
     linearlyReferencedPosition:
@@ -127,40 +136,37 @@ description: Common schema definitions shared by all themes
       "$comment":
         Ideally we would enforce sorted order of this pair, but sorting
         assertions aren't (yet?) supported by JSON schema.
+    side:
+      description:
+        Represents the side on which something appears relative to a
+        facing or heading direction, e.g. the side of a road relative
+        to the road orientation, or relative to the direction of travel
+        of a person or vehicle.
+      type: string
+      enum: [left, right]
     openingHours:
       description: >-
         Time span or time spans during which something is open or
         active, specified in the OSM opening hours specification:
           https://wiki.openstreetmap.org/wiki/Key:opening_hours/specification
       type: string
-      # pattern: ^Mo-Sa 09:00-12:00( closed)?, We 15:00-18:00( closed)?$
       "$comment": >-
-          The "pattern" is just a placeholder. We assume we can
-          specify a regular expression to give *some* degree of
-          initial lexical validation, but higher-level validation
-          will have to be done outside of JSON schema.
+          Validating the opening hours value is going to have to happen outside of JSON Schema.
 
           Reasons for using the OSM opening hours specification for
           transportation rule time restrictions are documented in
           https://github.com/OvertureMaps/schema-wg/pull/10
-          Note: removing pattern since it's limiting values for initial schema release.
     language:
       description: >-
-        Describes the language, script and other variants used to describe
-        names. It must be either the literal "local" or a language tag according
-        to definition in IETF-BCP47
+        An IETF-BCP47 language tag, as defined in  
         https://www.rfc-editor.org/rfc/bcp/bcp47.txt.
 
-        The value of "local" is used to indicate the name in the local language
-        and script. Such is the case when capturing data from OpenStreetMap
-        where only a "name" tag is supplied with no further information.
-
-        Although the BCP47 language tag definition is complex, a very simplified
+        Although the BCP47 language tag definition is complex, a simplified
         view defines a language as "language-script-region" where script and
-        region are optional. The spec lists allowed values for language, script,
-        and region. It further describes how to include variants, extensions and
-        other private custom extensions, which are allowed but not described
-        here.
+        region are optional. The specification lists allowed values for language,
+        script, and region. It further describes how to include variants,
+        extensions and other private custom extensions, which are allowed but
+        not described here.
 
         For some languages, the "Suppress-Script" property in BCP47 defines a
         script that can be omitted from the language tag. For example, the
@@ -171,83 +177,95 @@ description: Common schema definitions shared by all themes
 
         The complete lists of allowed values can be found at:
         https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry
-      oneOf:
-        - type: string
-          const: local
-        - type: string
-          pattern: "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-[a-zA-Z]{2})?$"
-          "$comment": >-
-              The "pattern" is mostly a placeholder. It captures the
-              language[-script][-region] variation of BCP47 but not the
-              "grandfathered" values and other variants and extensions.
-    nameProperty:
+      type: string
+      pattern: "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-[a-zA-Z]{2})?$"
+      "$comment": >-
+          The "pattern" is mostly a placeholder. It captures the
+          language[-script][-region] variation of BCP47 but not the
+          "grandfathered" values and other variants and extensions.
+    nameRule:
       type: object
-      required: [value, language]
-      unevaluatedProperties: false
+      required: [value]
+      allOf:
+        - { "$ref": "#/$defs/propertyContainers/atRangeContainer" }
+        - { "$ref": "#/$defs/propertyContainers/sideContainer" }
       properties:
+        variant:
+          type: string
+          enum:
+            - common
+            - official
+            - alternate
+            - short
+        language: { "$ref": "#/$defs/propertyDefinitions/language" }
         value:
           type: string
-        language: { "$ref": "#/$defs/propertyDefinitions/language" }
-    names:
+          minLength: 1
+          pattern: ^(\S.*)?\S$    # Leading and trailing whitespace are not allowed.
+    allNames:
       type: object
-      required: [common]
+      required: [primary]
+      unevaluatedProperties: false
       properties:
-        common:
+        primary:
+          description: The most commonly used name.
+          type: string
+          minLength: 1
+          pattern: ^(\S.*)?\S$    # Leading and trailing whitespace are not allowed.
+        common: { "$ref": "#/$defs/propertyDefinitions/commonNames" }
+        rules:
           description: >-
-            The most commonly used name when referring to a feature.  The first
-            entry in the array of common names must have a language of "local"
-            making it the easiest, default name to use among all options.
+            Rules for names that cannot be specified in the simple
+            common names property. These rules can cover other name
+            variants such as official, alternate, and short; and they
+            can optionally include geometric scoping (linear
+            referencing) and side-of-road scoping for complex cases.
           type: array
-          prefixItems:
-            - $ref: "#/$defs/propertyDefinitions/nameProperty"
-              type: object
-              properties:
-                language:
-                  const: local
-          items: { "$ref": "#/$defs/propertyDefinitions/nameProperty" }
+          items: { "$ref": "#/$defs/propertyDefinitions/nameRule" }
           minItems: 1
-        official:
-          description: >-
-            An official name which is often a longer and more verbose version of
-            the common name. For example, the official name of the United Kingdom
-            is "United Kingdom of Great Britain and Northern Ireland" whereas the
-            common name would be "United Kingdom"
-          type: array
-          items: { "$ref": "#/$defs/propertyDefinitions/nameProperty" }
-          minItems: 1
-        alternate:
-          description: >-
-            Alternative names used to refer to the feature that may not fit
-            into other categories.
-          type: array
-          items: { "$ref": "#/$defs/propertyDefinitions/nameProperty" }
-          minItems: 1
-        short:
-          description: >-
-            Short names are often abbreviations or other shorthand forms of a name. The
-            short name of the United Kingdom is UK.
-          type: array
-          items: { "$ref": "#/$defs/propertyDefinitions/nameProperty" }
-          minItems: 1
+    commonNames:
+      description: The common translations of the name.
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      patternProperties:
+        "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-[a-zA-Z]{2})?$":
+          "$comment": >-
+            This is an incomplete pattern for BCP47 language tags.
+          type: string
+          minLength: 1
+          pattern: ^(\S.*)?\S$    # Leading and trailing whitespace are not allowed.
+    iso3166_1Alpha2CountryCode:
+      description: ISO 3166-1 alpha-2 country code.
+      type: string
+      minLength: 2
+      maxLength: 2
+      pattern: ^[A-Z]{2}$
+    iso3166_2SubdivisionCode:
+      description: ISO 3166-2 principal subdivision code.
+      type: string
+      minLength: 4
+      maxLength: 6
+      pattern: ^[A-Z]{2}-[A-Z0-9]{1,3}$
     address:
       type: object
       unevaluatedProperties: false
       properties:
         freeform:
-          description: Free-form address that contains street name, house number and other address info
+          description: >-
+            Free-form address that contains street name, house number
+            and other address info
           type: string
         locality:
-          description: Name of the City or Neighborhood where the address is located
+          description: >-
+            Name of the city or neighborhood where the address is
+            located
           type: string
         postcode:
-          description: Post code where the address is located
+          description: Postal code where the address is located
           type: string
-        region:
-          description: ISO-3166-2 subdivision/province code
-          type: string
-        country:
-          description: ISO 3166 alpha2 country code
-          type: string
+        region: { "$ref": "#/$defs/propertyDefinitions/iso3166_2SubdivisionCode" }
+        country: { "$ref": "#/$defs/propertyDefinitions/iso3166_1Alpha2CountryCode" }
     wikidata:
       description: A wikidata ID if available, as found on https://www.wikidata.org/.
       type: string
@@ -257,20 +275,38 @@ description: Common schema definitions shared by all themes
       title: Overture Properties
       description: Top-level properties shared by all Overture features
       type: object
-      required: [ theme, type, version, updateTime ]
+      required: [ theme, type, version, update_time ]
       patternProperties:
-        ^ext.*$:
-          description: "Additional top-level properties must be prefixed with `ext`."
+        ^ext_.*$:
+          description: "Additional top-level properties must be prefixed with `ext_`."
       properties:
         theme: { "$ref": "#/$defs/propertyDefinitions/theme" }
         type: { "$ref": "#/$defs/propertyDefinitions/featureType" }
         version: { "$ref": "#/$defs/propertyDefinitions/featureVersion" }
-        updateTime: { "$ref": "#/$defs/propertyDefinitions/featureUpdateTime" }
+        update_time: { "$ref": "#/$defs/propertyDefinitions/featureUpdateTime" }
         sources: { "$ref": "#/$defs/propertyDefinitions/sources" }
+    namesContainer:
+      description: Properties defining the names of a feature.
+      type: object
+      properties:
+        names:
+          "$ref": "#/$defs/propertyDefinitions/allNames"
     levelContainer:
-      title: "Z-Order"
       description: Properties defining feature Z-order, i.e., stacking order
       type: object
       properties:
         level:
           "$ref": "#/$defs/propertyDefinitions/level"
+    atRangeContainer:
+      description: >-
+        Geometric scoping properties defining the range of positions on
+        the segment where something is physically located or where a
+        rule is active.
+      properties:
+        at: { "$ref": "#/$defs/propertyDefinitions/linearlyReferencedRange" }
+    sideContainer:
+      description: >-
+        Geometric scoping properties defining the side of a road modeled when
+        moving along the line from beginning to end
+      properties:
+        side: { "$ref": "#/$defs/propertyDefinitions/side" }

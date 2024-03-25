@@ -1,6 +1,6 @@
 ---
 "$schema": https://json-schema.org/draft/2020-12/schema
-title: Place Schema
+title: place
 description: >-
   A Place is a point representation of a real-world facility, service,
   or amenity. Place features are compatible with GeoJSON Point features.
@@ -20,8 +20,8 @@ properties:
     required: [categories]
     allOf:
       - "$ref": ../defs.yaml#/$defs/propertyContainers/overtureFeaturePropertiesContainer
+      - "$ref": ../defs.yaml#/$defs/propertyContainers/namesContainer
     properties:
-      names: { "$ref": "../defs.yaml#/$defs/propertyDefinitions/names" }
       categories:
         description: The categories of the place. The list of categories can be found <TODO>.
         type: object
@@ -69,10 +69,13 @@ properties:
           type: string
         uniqueItems: true
       brand:
-        description: The brand of the place. We consider a location with multiple brands as separate places, each with their own brand.
+        description: >-
+          The brand of the place. A location with multiple brands is
+          modeled as multiple separate places, each with its own brand.
         type: object
+        allOf:
+          - "$ref": "../defs.yaml#/$defs/propertyContainers/namesContainer"
         properties:
-          names: { "$ref": "../defs.yaml#/$defs/propertyDefinitions/names" }
           wikidata: { "$ref": "../defs.yaml#/$defs/propertyDefinitions/wikidata" }
       addresses:
         description: The addresses of the place.

@@ -134,6 +134,35 @@ def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict,reqProps=[],lb=0)
                 eaEl.Attributes.Refresh()           
     return eaEl
 
+def createPatternPropertiesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict,reqProps=[],lb=0):
+#Create pattern properties from a list in a YAML dictionary
+    lstReq = reqProps
+    pos = eaEl.Attributes.Count + 1
+    for key in yDict :
+        strName = 'patternProperty' + str(pos)
+        eaAttr = eaEl.Attributes.AddNew(strName,"")
+        eaAttr.Visibility = "Public"
+        eaAttr.Pos = eaEl.Attributes.Count + 1 #pos
+        # Default cardinality 0..1. May be overruled by minItems and maxItems and list of required properties
+        eaAttr.LowerBound = lb
+        eaAttr.UpperBound = "*" #several properties may match the pattern
+        eaAttr.Update()
+        pos += 1
+
+        printTS('Added property:"' + eaAttr.Name + '"')
+
+        ## Get type, definition etc    
+        eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict[key])           
+        eaEl.Attributes.Refresh()   
+        strOCL = strName + ': attribute name = instance property name'
+        eaConstraint = eaEl.Constraints.AddNew(strOCL,'Invariant')
+        eaConstraint.Update()
+        strOCL = strName + ': instance property name must match "' + key +'"'
+        eaConstraint = eaEl.Constraints.AddNew(strOCL,'Invariant')
+        eaConstraint.Update()
+    return eaEl
+
+
 def convert2ISOtypes(eaRepo,eaAttr,strType):
 #Convert from YAML types to primitive ISO/TC 211 UML types
     guidDT = "0"
@@ -192,17 +221,20 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict,delAttr=True):
                 printTS('Required properties: ' + str(yDict[key]))
                 # Create a list of required properties
                 lstReq = yDict[key]
-        elif key == 'properties':
+        elif key == 'properties' or key == 'patternProperties':
             # In case eaDTel not referenced. Create (or get) data type
             strName = eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
-            # Speciality for restrictions (two different types - for rad and for lane)
+            # Speciality for restrictions (two different types - for road and for lane)
             if strName == 'RestrictionsType':
                 if strName.endswith('Type'):
                     strName = eaEl.Name[:-4] + strName
                 else:
                     strName = eaEl.Name + strName
             eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,False)
-            eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq)       
+            if key == 'properties':
+                eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq)      
+            elif key == 'patternProperties':
+                eaDTel = createPatternPropertiesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq)          
         elif key == 'description':
             printTS('Definition: ' + yDict[key])    
             eaAttr.Notes = yDict[key]

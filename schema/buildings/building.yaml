@@ -1,6 +1,6 @@
 ---
 "$schema": https://json-schema.org/draft/2020-12/schema
-title: Building Footprint Schema
+title: building
 description: >-
   A building is a man-made structure with a roof that exists permanently in one place. Buildings are compatible with
   GeoJSON Polygon features.
@@ -10,8 +10,9 @@ properties:
     "$ref": ../defs.yaml#/$defs/propertyDefinitions/id
   geometry:
     description: >-
-      A regular building's geometry is defined as it's footprint or roofprint (if traced from aerial/satellite imagery). These MUST be a Polygon as defined by GeoJSON
-      schema.
+      A regular building's geometry is defined as its footprint or
+      roofprint (if traced from aerial/satellite imagery). It MUST be a
+      Polygon or MultiPolygon as defined by the GeoJSON schema.
     unevaluatedProperties: false
     oneOf:
       - "$ref": https://geojson.org/schema/Polygon.json
@@ -19,15 +20,17 @@ properties:
   properties:
     unevaluatedProperties: false
     allOf:
-      - "$ref": ./defs.yaml#/shapeContainer
       - "$ref": ../defs.yaml#/$defs/propertyContainers/overtureFeaturePropertiesContainer
+      - "$ref": ../defs.yaml#/$defs/propertyContainers/namesContainer
       - "$ref": ../defs.yaml#/$defs/propertyContainers/levelContainer
+      - "$ref": ./defs.yaml#/shapeContainer
     properties:
-      names: { "$ref": "../defs.yaml#/$defs/propertyDefinitions/names" }
       class:
         description: >-
-          A broad category of the building type / purpose. When the current use of the building does not match the built purpose, the class should
-          be set to represent the current use of the building.
+          A broad category of the building type/purpose. When the
+          current use of the building does not match the built purpose,
+          the class should be set to represent the current use of the
+          building.
         type: string
         enum:
           - residential
@@ -43,6 +46,6 @@ properties:
           - medical
           - entertainment
           - military
-      hasParts:
+      has_parts:
         description: Flag indicating whether the building has parts
         type: boolean

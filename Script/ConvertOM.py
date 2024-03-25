@@ -163,7 +163,7 @@ for folder, subfolders, files in os.walk(schemaFolder):
                                                 # List of which of the subsequent properties are required
                                                 printTS('Required item properties: ' + str(yaml_dict[i][j][pC][p][pi]))
                                                 # Create a list of required properties 
-                                                lstReq = yaml_dict[i][j][pC][pi]
+                                                lstReq = yaml_dict[i][j][pC][p][pi]
                                             elif pi == 'anyOf':
                                                 # Create constraint in the data type for the array
                                                 strOCL = 'inv:' #'context ' + eaEl.Name + ' inv:'
@@ -338,7 +338,7 @@ lstPrefix = []
 for eaPck in omMod.Packages:
     for eaEl in eaPck.Elements:    
         if eaEl.Type == 'Class' or eaEl.Type == 'DataType':
-            matching_items = [item for item in lstNames if item.startswith(eaEl.Name) and item != eaEl.Name]
+            matching_items = [item for item in lstNames if item.startswith(eaEl.Name) and not item.startswith(eaEl.Name + "_") and item != eaEl.Name]
             if len(matching_items) > 0:
                 #Found matching items. Check if they will be unique without the prefix
                 printTS('')
