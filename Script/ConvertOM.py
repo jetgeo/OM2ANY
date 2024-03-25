@@ -350,7 +350,7 @@ for eaPck in omMod.Packages:
                     # build list of items that ends with the same name
                     matching_item_parts = [subItem for subItem in lstNames if subItem.endswith(strName)]
                     if len(matching_item_parts) > 1:
-                        printTS(strName)                        
+                        printTS('Other elements that end with' + strName)                        
                         printTS(matching_item_parts)
                     elif strName.startswith('Use'):
                         #TODO: Fix LandUse...
