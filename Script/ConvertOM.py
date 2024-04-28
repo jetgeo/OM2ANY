@@ -57,13 +57,14 @@ for folder, subfolders, files in os.walk(schemaFolder):
     # Keep the "Common" package for later use
     if strName == "Common":
         omCommonPck = eaPck
+        #Set to first position
 
     for file in files:
         # Get the full path of the file
         file_path = os.path.join(folder, file)
         # Check if the file matches the yaml pattern
         if yaml_pattern.match(file_path):
-          #printTS('File: '+ file_path)
+          printTS('File: '+ file_path)
           # Get the file name without extension
           file_name = os.path.splitext(file)[0]
           # Skip the main schema.yaml file (not relevant for the conversion)
@@ -101,7 +102,7 @@ for folder, subfolders, files in os.walk(schemaFolder):
                     printTS('Global properties')
                     # Get or create Defs Class, delete all existing attributes 
                     for j in yaml_dict[i]:
-                        if (j == 'propertyDefinitions') :
+                        if (j == 'propertyDefinitions') or  (j == 'typeDefinitions') :
                             strName = eaPck.Name + "Defs"
                             if file != 'defs.yaml':
                                 strAlias = ""
@@ -220,6 +221,31 @@ for folder, subfolders, files in os.walk(schemaFolder):
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Cleanup for the complete model
+# Common package in first position
+omCommonPck.TreePos = 0
+omCommonPck.Update()
+eaRepo.RefreshModelView (omMod.PackageID)
+omMod.Packages.Refresh()
+
+
+# "Def" elements in the first position within each package
+for eaPck in omMod.Packages:
+    for eaEl in eaPck.Elements:
+        if eaEl.Name.endswith('Defs') and eaEl.Stereotype.upper() == 'FEATURETYPE':
+            eaEl.TreePos = 0
+        elif eaEl.Stereotype.upper() == 'FEATURETYPE':
+            eaEl.TreePos = 1    
+        eaEl.Update()
+    eaRepo.RefreshModelView (eaPck.PackageID)
+    eaPck.Elements.Refresh()
+
+eaRepo.RefreshModelView (eaMod.PackageID)
+for eaPck in omMod.Packages:
+    printTS(str(eaPck.TreePos) + ": " + eaPck.Name)
+    for eaEl in eaPck.Elements:
+        if eaEl.Stereotype.upper() == 'FEATURETYPE':
+            printTS(str(eaEl.TreePos) + ": " + eaEl.Name)
+
 
 # Find all uses of data types and enumerations, and set correct type name and ClassifierID
 printTS('Use of enumerations and datatypes everywhere...')
@@ -247,7 +273,82 @@ for eaDTpck in omMod.Packages:
                             if eaAttr.Notes == "":
                                 eaAttr.Notes = eaDTel.Notes
                             eaAttr.Update()
-                            eaEl.Attributes.Refresh()                 
+                            eaEl.Attributes.Refresh()    
+# Fix "ref" datatypes
+printTS('Fix "ref" datatypes...')
+for eaPck in omMod.Packages:
+    for eaEl in eaPck.Elements:
+        if eaEl.Type == "Class" or eaEl.Type == "DataType":
+            # Class or DataType found, controlling attributes
+            printTS(eaEl.Type + ": " + eaEl.Name)
+            for eaAttr in eaEl.Attributes:
+                if eaAttr.Type.startswith("ref:"):
+                    strRef = eaAttr.Type
+                    strType = strRef.split("/")[-1].removesuffix('.json')
+                    eaAttr.Type = strType
+                    if "propertyDefinitions" in strRef or "typeDefinitions" in strRef:
+                        if strRef.startswith("ref:../defs.yaml"):
+                            printTS('Common package propertyDefinition: ' + strType)  
+                            try:
+                                eaDTEl = omCommonPck.Elements.GetByName('CommonDefs')
+                            except:    
+                                eaDTEl = None                                
+                        elif strRef.startswith("ref:./defs.yaml") or strRef.startswith("ref:#/$defs/"):
+                            printTS('Local package (' + eaPck.Name + ') propertyDefinition: ' + strType) 
+                            try:
+                                eaDTEl = eaPck.Elements.GetByName(eaPck.Name + 'Defs')
+                            except:    
+                                eaDTEl = None  
+                        if not eaDTEl == None:         
+                            # Search for the attribute and copy Type, ClassifierID and notes                                                              
+                            for eaDTAttr in eaDTEl.Attributes:
+                                if eaDTAttr.Name == strType:
+                                    eaAttr.ClassifierID = eaDTAttr.ClassifierID
+                                    eaAttr.Type = eaDTAttr.Type 
+                                    printTS('Found ' + eaDTAttr.Name)
+                                    # Copy definition if not set    
+                                    if eaAttr.Notes == "":
+                                        eaAttr.Notes = eaDTAttr.Notes
+                                    # Special treatment of linearlyReferencedRange to get the correct multiplicity
+                                    if "linearlyReferencedRange" in strRef:
+                                        eaAttr.LowerBound = eaDTAttr.LowerBound
+                                        eaAttr.UpperBound = eaDTAttr.UpperBound
+                        if eaAttr.ClassifierID == 0:
+                            printTS('Referenced type not found!') 
+                    elif "propertyContainers" in strRef or "shapeContainer" in strRef:
+                        if strRef.startswith("ref:../defs.yaml"):                        
+                            printTS('Common package propertyContainer: '+ strType) 
+                            try:
+                                eaDTEl = omCommonPck.Elements.GetByName(strType[0].upper() + strType[1:])
+                            except:    
+                                eaDTEl = None   
+                        elif strRef.startswith("ref:./defs.yaml") or strRef.startswith("ref:#/$defs/"):
+                            printTS('Local package (' + eaPck.Name + ') propertyContainer: ' + strType) 
+                            try:
+                                eaDTEl = eaPck.Elements.GetByName(strType[0].upper() + strType[1:])
+                            except:    
+                                eaDTEl = None                                 
+                        if not eaDTEl == None:    
+                            eaAttr.ClassifierID = eaDTEl.ElementID
+                            printTS('Found ' + eaDTEl.Name)
+                            # Copy definition if not set    
+                            if eaAttr.Notes == "":
+                                eaAttr.Notes = eaDTEl.Notes                                                    
+                        if eaAttr.ClassifierID == 0:
+                            printTS('Referenced type not found!') 
+                    elif strRef.startswith("ref:https://geojson.org"):
+                        printTS('GeoJSON type: ' + strType)
+                    else:
+                        printTS("other type: " + strType)
+                    eaAttr.Update()
+
+
+#TODO: Find out why the "when" attribute under lanes, prohibited_transitions, speedLimitsContainer,  accessContainer
+# is not handled. 
+#NOTE: speedLimitsContainer and accessContainer has a comment "#FIXME: Not a 'container', move up."
+
+
+             
 
 # Fix attribute type and ClassifierID for attributes that are still missing ClassifierID due to wrong use of "Type"
 # If there exists another attribute in a Defs class with the Type name, without "Type" --> use the same Type as that one. 

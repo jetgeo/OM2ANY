@@ -280,14 +280,16 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict,delAttr=True):
                 printTS("Enumeration value: " + eaDTattr.Name)	
                 eaDTel.Attributes.Refresh()
         elif key == '$ref':
-            strRef = yDict[key].split("/")[-1]
-            if strRef.endswith('.json'):
-                strRef = strRef.removesuffix('.json')
-            elif not strRef.endswith('Container'):
-                strRef += "Type"
-            strRef = strRef[0].upper() + strRef[1:]
+            #TODO: Fix later and get correct type from the path
+            # strRef = yDict[key].split("/")[-1]
+            # if strRef.endswith('.json'):
+            #     strRef = strRef.removesuffix('.json')
+            # elif not strRef.endswith('Container'):
+            #     strRef += "Type"
+            # strRef = strRef[0].upper() + strRef[1:]
+            strRef = yDict[key]
             printTS('Attributeref: ' + strRef)
-            eaAttr.Type = strRef      
+            eaAttr.Type = 'ref:' + strRef      
         elif key == 'items':
             # items in an array
             eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict[key])
@@ -360,7 +362,10 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict,delAttr=True):
                 printTS(lstTypes)
                 strOCL = 'inv:' #'context ' + eaEl.Name + ' inv:'
                 for alt in lstTypes:
-                    strOCL += ' self.' + eaAttr.Name + '.oclIsTypeOf(' + alt + ') or'
+                    strType = alt    
+                    if alt.startswith("ref:"):
+                        strType = alt.split("/")[-1].removesuffix('.json')
+                    strOCL += ' self.' + eaAttr.Name + '.oclIsTypeOf(' + strType + ') or'
                 strOCL = strOCL.rstrip(' or')
 
                 eaConstraint = eaEl.Constraints.AddNew(strOCL,'OCL')

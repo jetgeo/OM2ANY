@@ -26,11 +26,12 @@ description: Common schema definitions shared by all themes
         - connector
         - division
         - division_area
+        - infrastructure
         - land
         - land_use
         - locality                # DEPRECATED
         - locality_area           # DEPRECATED
-        - part
+        - building_part
         - place
         - segment
         - water
@@ -158,7 +159,7 @@ description: Common schema definitions shared by all themes
           https://github.com/OvertureMaps/schema-wg/pull/10
     language:
       description: >-
-        An IETF-BCP47 language tag, as defined in  
+        An IETF-BCP47 language tag, as defined in
         https://www.rfc-editor.org/rfc/bcp/bcp47.txt.
 
         Although the BCP47 language tag definition is complex, a simplified
@@ -187,8 +188,8 @@ description: Common schema definitions shared by all themes
       type: object
       required: [value]
       allOf:
-        - { "$ref": "#/$defs/propertyContainers/atRangeContainer" }
-        - { "$ref": "#/$defs/propertyContainers/sideContainer" }
+        - { "$ref": "#/$defs/propertyContainers/geometricRangeScopeContainer" }
+        - { "$ref": "#/$defs/propertyContainers/sideScopeContainer" }
       properties:
         variant:
           type: string
@@ -272,7 +273,7 @@ description: Common schema definitions shared by all themes
       pattern: ^Q\d+
   propertyContainers:
     overtureFeaturePropertiesContainer:
-      title: Overture Properties
+      title: overture properties
       description: Top-level properties shared by all Overture features
       type: object
       required: [ theme, type, version, update_time ]
@@ -286,25 +287,27 @@ description: Common schema definitions shared by all themes
         update_time: { "$ref": "#/$defs/propertyDefinitions/featureUpdateTime" }
         sources: { "$ref": "#/$defs/propertyDefinitions/sources" }
     namesContainer:
+      title: names
       description: Properties defining the names of a feature.
       type: object
       properties:
         names:
           "$ref": "#/$defs/propertyDefinitions/allNames"
     levelContainer:
+      title: level
       description: Properties defining feature Z-order, i.e., stacking order
       type: object
       properties:
         level:
           "$ref": "#/$defs/propertyDefinitions/level"
-    atRangeContainer:
+    geometricRangeScopeContainer:
       description: >-
         Geometric scoping properties defining the range of positions on
         the segment where something is physically located or where a
         rule is active.
       properties:
-        at: { "$ref": "#/$defs/propertyDefinitions/linearlyReferencedRange" }
-    sideContainer:
+        between: { "$ref": "#/$defs/propertyDefinitions/linearlyReferencedRange" }
+    sideScopeContainer:
       description: >-
         Geometric scoping properties defining the side of a road modeled when
         moving along the line from beginning to end
