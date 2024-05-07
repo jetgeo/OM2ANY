@@ -487,8 +487,10 @@ for eaPck in omMod.Packages:
         # Make sure constraints are shown in all elements
         eDgrObj.ElementDisplayMode = 1
         eDgrObj.ShowConstraints = True
+        eDgrObj.fontName = "Calibri"
         eDgrObj.Update()
         printTS('Added diagramobject "' + eaEl.Name + '"')
+
     eDgr.Update()
     ePIF = eaRepo.GetProjectInterface()
     ePIF.LayoutDiagramEx(eDgr.DiagramGUID, 4, 4, 20, 20, True)
