@@ -1,8 +1,8 @@
 # Parameters
 
-mainFolder = "C:\\Data\\GitHub\\jetgeo\\OM2UML"
+mainFolder = "C:\\Data\\GitHub\\jetgeo\\OM2ANY"
 repo_path = mainFolder + '\\EA\\SandboxForOvertureMaps.qea'
-schemaFolder = mainFolder + "\\schema"
+schemaFolder = mainFolder + "\\YAML"
 modelName = 'OvertureMaps'
 
 # /*
