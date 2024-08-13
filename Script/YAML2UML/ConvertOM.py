@@ -114,6 +114,7 @@ for folder, subfolders, files in os.walk(schemaFolder):
                             printTS('Processing property containers')
                             for pC in yaml_dict[i][j]:
                                 strName = pC[0].upper() + pC[1:]
+                                printTS('Name: ' + strName)
                                 strAlias = ""
                                 strDef = ""
                                 lstReq = []
@@ -345,10 +346,6 @@ for eaPck in omMod.Packages:
 
 #TODO: Find out why the "when" attribute under lanes, prohibited_transitions, speedLimitsContainer,  accessContainer
 # is not handled. 
-#NOTE: speedLimitsContainer and accessContainer has a comment "#FIXME: Not a 'container', move up."
-
-
-             
 
 # Fix attribute type and ClassifierID for attributes that are still missing ClassifierID due to wrong use of "Type"
 # If there exists another attribute in a Defs class with the Type name, without "Type" --> use the same Type as that one. 

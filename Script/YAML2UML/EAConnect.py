@@ -325,11 +325,21 @@ def convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,yDict,delAttr=True):
                 # add properties for the object data type
                 eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq,1)
             else:
-                # Set data type
-                for eKey in yDict[key]:
-                    eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,eKey)
-                eaAttr.LowerBound = 1    
-            #
+                if len(yDict[key]) > 1:
+                    printTS('More than one in all of statement, create datatype with attributes!')
+                    # Create (or get) data type with prefix
+                    strName = eaEl.Name.replace('Type','') + eaAttr.Name[0].upper() + eaAttr.Name[1:] + "Type"
+                    eaDTel = getOrCreateElementByName(eaPck,strName,"DataType", "",False,"",eaAttr.Notes,True)
+                    eaPck.Elements.Refresh()
+                    eaAttr.Type = eaDTel.Name
+                    eaAttr.ClassifierID = eaDTel.ClassifierID
+                    # add properties for the object data type
+                    eaDTel = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaDTel,yDict[key],lstReq,1)
+                else:    
+                    # Only one, set data type
+                    for eKey in yDict[key]:
+                        eaAttr = convertAttributeProperties(eaRepo,eaPck,eaEl,eaAttr,eKey)
+                    eaAttr.LowerBound = 1    
         elif key == 'oneOf':
             # oneOf for the value type of the property type --> selection of value types
             printTS(key + ' statement' )
