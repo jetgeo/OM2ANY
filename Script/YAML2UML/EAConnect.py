@@ -95,7 +95,7 @@ def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict,reqProps=[],lb=0)
                 cp = False
                 for eKey in key:
                     if eKey == '$ref':
-                        strName = key[eKey].split("/")[-1].replace("Container", "")
+                        strName = key[eKey].split("/")[-1]#.replace("Container", "")
                     elif eKey == 'title' and key[eKey] == "Conditional Properties":
                         printTS("Conditional Properties")
                         cp = True
@@ -103,7 +103,8 @@ def createAttributesFromYAMLDictionary(eaRepo,eaPck,eaEl,yDict,reqProps=[],lb=0)
                         #TODO: Loop and create constraint
                         printTS("If statement: " )    
                         printTS(key[eKey])
-
+                    elif eKey == 'properties':
+                        eaEl = createAttributesFromYAMLDictionary(eaRepo,eaPck, eaEl,key[eKey],lstReq)
                     elif cp and eKey == 'then':
                         # Loop and create conditional properties 
                         printTS("then statement") 

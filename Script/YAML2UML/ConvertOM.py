@@ -343,10 +343,6 @@ for eaPck in omMod.Packages:
                         printTS("other type: " + strType)
                     eaAttr.Update()
 
-
-#TODO: Find out why the "when" attribute under lanes, prohibited_transitions, speedLimitsContainer,  accessContainer
-# is not handled. 
-
 # Fix attribute type and ClassifierID for attributes that are still missing ClassifierID due to wrong use of "Type"
 # If there exists another attribute in a Defs class with the Type name, without "Type" --> use the same Type as that one. 
 printTS('Fix missing data types and ClassifierIDs...')
@@ -403,6 +399,11 @@ for eaPck in omMod.Packages:
                         for eaDTAttr in eaDTel.Attributes:
                             pos += 1
                             newAttr = eaEl.Attributes.AddNew(eaDTAttr.Name,"")
+                            # If the number of attributes in the container = 1 
+                            # and the name of the attribute <> the container name --> Keep original attribute name
+                            if eaDTel.Attributes.Count == 1: 
+                                if  eaAttr.Name.upper() != eaDTel.Name.upper():
+                                    newAttr.Name = eaAttr.Name
                             newAttr.Type = eaDTAttr.Type
                             newAttr.ClassifierID = eaDTAttr.ClassifierID
                             newAttr.Notes = eaDTAttr.Notes
