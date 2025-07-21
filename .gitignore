@@ -1,2 +1,12 @@
 /Data/data.db
 /Data/data.db.wal
+Data/MODI/aoi_moss.geojson
+Data/MODI/aoi.geojson
+Data/MODI/missing_in_om.geojson
+Data/MODI/nvdb_Nodes.geojson
+Data/MODI/nvdb_NodesFiltered.geojson
+Data/MODI/nvdb_Segments.geojson
+Data/MODI/om_connectors.geojson
+Data/MODI/om_nvdb.qgz
+Data/MODI/om_segments.geojson
+Data/Hamar/nvdb_Segments.geojson
