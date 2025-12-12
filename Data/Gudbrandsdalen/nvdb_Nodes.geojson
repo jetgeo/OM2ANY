@@ -11186,7 +11186,7 @@
 { "type": "Feature", "properties": { "nodeid": "3044257" }, "geometry": { "type": "Point", "coordinates": [ 221040.200000000011642, 6846133.940000000409782, 250.671 ] } },
 { "type": "Feature", "properties": { "nodeid": "3169768" }, "geometry": { "type": "Point", "coordinates": [ 238288.93, 6833405.71, 188.287 ] } },
 { "type": "Feature", "properties": { "nodeid": "3169769" }, "geometry": { "type": "Point", "coordinates": [ 238240.730000000010477, 6833440.410000000149012, 188.357 ] } },
-{ "type": "Feature", "properties": { "nodeid": "3169785" }, "geometry": { "type": "Point", "coordinates": [ 238076.980000000010477, 6833528.900000000372529, 191.216 ] } },
+{ "type": "Feature", "properties": { "nodeid": "3169785" }, "geometry": { "type": "Point", "coordinates": [ 238077.174, 6833528.872000000439584, 190.896 ] } },
 { "type": "Feature", "properties": { "nodeid": "2484629" }, "geometry": { "type": "Point", "coordinates": [ 241154.97, 6831894.690000000409782, 276.649 ] } },
 { "type": "Feature", "properties": { "nodeid": "3001596" }, "geometry": { "type": "Point", "coordinates": [ 240255.46, 6822657.349999999627471, 742.432 ] } },
 { "type": "Feature", "properties": { "nodeid": "2484633" }, "geometry": { "type": "Point", "coordinates": [ 240293.246000000013737, 6822614.934999999590218, 738.508 ] } },
